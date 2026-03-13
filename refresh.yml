@@ -1,1 +1,50 @@
+name: HLOOMBERG Refresh
 
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Fetch & Patch
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python refresh.py
+
+      - name: Commit & Push
+        run: |
+          git config user.name  "hloomberg-bot"
+          git config user.email "bot@hloomberg"
+          git add index.html
+          git diff --cached --quiet || git commit -m "refresh $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+          git push
+```
+
+→ **Commit changes** 클릭
+
+---
+
+## ② ANTHROPIC_API_KEY Secret 등록
+```
+Settings → Secrets and variables → Actions
+→ New repository secret
+  Name:   ANTHROPIC_API_KEY
+  Value:  sk-ant-api03-[새 키]
