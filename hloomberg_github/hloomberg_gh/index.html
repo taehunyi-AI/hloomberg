@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<script>setTimeout(function(){location.reload();},300000);</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HLOOMBERG TERMINAL</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080b0f;--bg1:#0d1117;--bg2:#111820;--bg3:#161e28;
+  --bd:#1e2d3d;--bd2:#2d3f52;
+  --txt:#c9d1d9;--txt2:#8b949e;--txt3:#4a5568;
+  --blue:#58a6ff;--green:#3fb950;--red:#f85149;
+  --yel:#d29922;--ora:#db6d28;--cyn:#39c5cf;
+  --mono:'IBM Plex Mono',monospace;--sans:'Noto Sans KR',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--txt);font-family:var(--mono);min-height:100vh;overflow-x:hidden}
+
+#tb{display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;height:48px;background:var(--bg1);border-bottom:1px solid var(--bd);
+  position:sticky;top:0;z-index:300}
+.brand{font-size:11px;font-weight:700;letter-spacing:2px;color:var(--blue);line-height:1.4}
+.lv{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--txt3);letter-spacing:1px;margin-top:2px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.cr{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+#clk{font-size:20px;font-weight:700;color:#fff;letter-spacing:2px;font-variant-numeric:tabular-nums}
+#dts{font-size:10px;color:var(--txt2);letter-spacing:1px}
+
+#tkw{height:34px;display:flex;align-items:center;
+  background:var(--bg1);border-bottom:1px solid var(--bd);overflow:hidden}
+.tki{display:inline-flex;animation:sc 55s linear infinite;white-space:nowrap}
+#tkw:hover .tki{animation-play-state:paused}
+@keyframes sc{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.tc{display:inline-flex;align-items:center;gap:8px;padding:0 14px;border-right:1px solid var(--bd);height:34px}
+.tl{font-size:9px;color:var(--txt3);letter-spacing:1px}
+.tv{font-size:13px;font-weight:600;color:#fff}
+.tc2{font-size:10px}
+.up{color:var(--green)}.dn{color:var(--red)}.neu{color:var(--txt2)}
+
+#tabs{display:flex;background:var(--bg1);border-bottom:2px solid var(--bd);
+  overflow-x:auto;scrollbar-width:none;position:sticky;top:48px;z-index:200}
+#tabs::-webkit-scrollbar{display:none}
+.tb2{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1.5px;
+  color:var(--txt3);background:none;border:none;border-bottom:3px solid transparent;
+  margin-bottom:-2px;padding:11px 16px;cursor:pointer;white-space:nowrap;
+  text-transform:uppercase;transition:all .15s;flex-shrink:0}
+.tb2:hover{color:var(--txt)}.tb2.on{color:var(--blue);border-bottom-color:var(--blue)}
+
+.pn{display:none;padding:12px 12px 40px}.pn.on{display:block}
+.sl{font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase;
+  border-bottom:1px solid var(--bd);padding-bottom:6px;margin:16px 0 10px}
+
+.alert{border:1px solid var(--red);border-radius:6px;padding:10px 12px;
+  background:#1c0808;margin-bottom:10px;font-size:12px;color:var(--red);
+  font-weight:600;font-family:var(--sans);line-height:1.5}
+
+.nc{border:1px solid var(--bd);border-radius:6px;padding:12px;margin-bottom:9px;background:var(--bg2)}
+.nm{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.tag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.5px}
+.tw{background:#3d0c0c;color:var(--red)}
+.te{background:#0c1f3d;color:var(--blue)}
+.tm{background:#0c2d1a;color:var(--green)}
+.tg{background:#2d1f0c;color:var(--yel)}
+.tn{background:#2d180c;color:var(--ora)}
+.tk{background:#1a0c2d;color:var(--cyn)}
+.nt{font-size:10px;color:var(--txt3)}
+.ni{font-size:13.5px;font-weight:600;color:var(--txt);line-height:1.55;font-family:var(--sans)}
+.nd{font-size:12px;color:var(--txt2);line-height:1.6;margin-top:5px;font-family:var(--sans)}
+
+.kp3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.kp{border:1px solid var(--bd);border-radius:6px;padding:12px 8px;background:var(--bg1);text-align:center}
+.kpl{font-size:9px;color:var(--txt3);letter-spacing:.5px;margin-bottom:5px;font-family:var(--sans)}
+.kpv{font-size:20px;font-weight:700}
+.kps{font-size:10px;color:var(--txt3);margin-top:3px;font-family:var(--sans)}
+
+.scr{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.scc{border:1px solid var(--bd);border-radius:8px;padding:14px;cursor:pointer;background:var(--bg1);transition:all .2s}
+.scc.sl2{border-color:var(--red)!important;background:#1c0a0a}
+.scc.ss{border-color:var(--green)!important;background:#0a1c0e}
+.scp{font-size:22px;font-weight:700;margin-bottom:3px}
+.scn{font-size:10px;color:var(--txt2);font-family:var(--sans)}
+.pb{height:4px;background:var(--bg3);border-radius:2px;margin-top:10px;overflow:hidden}
+.pf{height:100%;border-radius:2px}
+.scsum{font-size:13px;color:var(--txt2);line-height:1.75;padding:12px;
+  border:1px solid var(--bd);border-radius:6px;background:var(--bg2);margin-bottom:14px;font-family:var(--sans)}
+.drv{border:1px solid var(--bd);border-radius:6px;padding:11px 12px;background:var(--bg1);margin-bottom:8px}
+.dt{font-size:11px;font-weight:700;margin-bottom:4px}
+.dd{font-size:12px;color:var(--txt2);line-height:1.55;font-family:var(--sans)}
+.ir{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ic{border:1px solid var(--bd);border-radius:6px;padding:12px;background:var(--bg1)}
+.il{font-size:9px;color:var(--txt3);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+.iv{font-size:13px;line-height:1.5;font-family:var(--sans)}
+
+.sc2{border:1px solid var(--bd);border-radius:6px;padding:12px;margin-bottom:9px;background:var(--bg1)}
+.st{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:9px}
+.sn{font-size:15px;font-weight:700;color:#fff}
+.sth{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.5px;margin-top:4px;display:inline-block}
+.tsm{background:#0c1f3d;color:var(--blue)}.tdf{background:#0c2a1a;color:var(--green)}
+.ten{background:#2d180c;color:var(--ora)}.trv{background:#1a1a2d;color:var(--cyn)}
+.tlg{background:#1a2d20;color:#56d364}
+.rd{display:flex;gap:4px;margin-top:6px}
+.rdot{width:8px;height:8px;border-radius:50%}
+.sa{font-size:11px;font-weight:700;letter-spacing:1px;padding:5px 11px;border-radius:4px;white-space:nowrap}
+.aby{background:#0c2d1a;color:var(--green)}.aho{background:#0c1f3d;color:var(--blue)}
+.awa{background:#2d1f0c;color:var(--yel)}.awn{background:#3d0c0c;color:var(--red)}
+.sb{font-size:12px;color:var(--txt2);line-height:1.65;font-family:var(--sans)}
+
+.fr{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd)}
+.fp{font-size:12px;color:var(--txt2);min-width:115px;font-family:var(--sans)}
+.fb{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.ff{height:100%;border-radius:3px}
+.fv{font-size:14px;font-weight:700;min-width:65px;text-align:right}
+.wb{border:1px solid #7d3e0a;border-radius:6px;padding:13px;background:#1c1008;margin-top:14px}
+.wt{font-size:11px;font-weight:700;color:var(--ora);margin-bottom:7px}
+.wbd{font-size:12px;color:var(--txt2);line-height:1.7;font-family:var(--sans)}
+.hl{color:var(--red);font-weight:700}
+.src{font-size:10px;color:var(--txt3);text-align:right;margin-top:12px;font-family:var(--sans)}
+</style>
+</head>
+<body>
+
+<div id="tb">
+  <div>
+    <div class="brand">◈ MACRO<br>TERMINAL</div>
+    <div class="lv"><span class="dot"></span>LIVE · KST</div>
+  </div>
+  <div class="cr">
+    <div id="dts"></div>
+    <div id="clk">--:--:--</div>
+  </div>
+</div>
+
+<div id="tkw"><div class="tki" id="ti"></div></div>
+
+<div id="tabs">
+  <button class="tb2 on" data-pane="news">뉴스</button>
+  <button class="tb2"    data-pane="scenario">이란 시나리오</button>
+  <button class="tb2"    data-pane="stocks">스윙 종목</button>
+  <button class="tb2"    data-pane="oil">유가 전망</button>
+</div>
+
+<!-- NEWS -->
+<div id="pane-news" class="pn on">
+  <!-- ##ALERT_S## --><div class="alert">
+    🔴 2026-03-12 (목) 장중 | KOSPI 5,720 ▲+3.39% | Brent $91.60 | USD/KRW 1,470 ▲달러강세
+  </div><!-- ##ALERT_E## -->
+<!-- ##NEWS_S## -->
+
+  <div class="nc">
+    <div class="nm"><span class="tag tk">한국</span><span class="nt">3/12 오전 장중</span></div>
+    <div class="ni">KOSPI 5,720 ▲+3.39% — 3일 연속 상승</div>
+    <div class="nd">오전 11:56 KST 기준 5,720.37 (+187.78). 삼성전자 ▲+1.17%, SK하이닉스 ▲+2.03%, 현대차 ▲+2.29%, 삼성바이오 ▲+4.08%, 기아 ▲+3.91%. 이재명 정부 100조원 시장안정화 프로그램 지속.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tw">전쟁</span><span class="nt">3/12 속보</span></div>
+    <div class="ni">테헤란, 미국에 핵외교 재개·투자 개방 신호</div>
+    <div class="nd">이란, 우라늄 농축 협상 여지 시사하며 미국 기업 이란 투자 허용 카드 제시. 단기종결 가능성 상승하며 유가 하방 압력. 오만 채널 협상 재가동 확인.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tn">에너지</span><span class="nt">3/12 장중</span></div>
+    <div class="ni">Brent $91.60 — 전쟁 리스크 프리미엄 소폭 하락</div>
+    <div class="nd">이란 외교 신호로 전쟁 프리미엄 페이드. 일중 범위 $86.29~$93.15. ICE 52주 최고 $119.50. WTI $88대 유지.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tw">전쟁</span><span class="nt">3/11</span></div>
+    <div class="ni">호르무즈 봉쇄 D+12 — 유조선 통항 전면 중단 지속</div>
+    <div class="nd">2/28 개전 이후 유조선 통항 중단. IEA 역대 최대 SPR 방출 검토 중. G7 원칙 합의에도 구체 규모 미발표.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tk">한국</span><span class="nt">3/11 종가</span></div>
+    <div class="ni">KOSPI 5,609 ▲+1.40% 마감 — 원화 1,470원대로 상승</div>
+    <div class="nd">삼성전자·SK하이닉스·현대차·삼성바이오 상승 견인. USD/KRW 1,494(3/9) → 1,470대로 원화 상승(달러 하락). 한국 정부 홍콩 IR 신뢰 강화.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tw">전쟁</span><span class="nt">3/10</span></div>
+    <div class="ni">트럼프 "전쟁 곧 끝날 수도" — WTI ▼−19%, $77 이탈 후 $89 상승</div>
+    <div class="nd">발언 직후 유가 폭락. 에너지장관 "호르무즈 안전 확보" 트윗 즉시 삭제·백악관 부인으로 혼선. KOSPI ▲+5.35% 급등.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tg">지정학</span><span class="nt">3/10</span></div>
+    <div class="ni">G7 에너지장관 긴급회의 — SPR 방출 원칙 합의</div>
+    <div class="nd">캐나다 카니 총리 주도 G7 화상회의. 전략비축유 방출 원칙 합의. 구체 규모·시기 미발표.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag te">경제</span><span class="nt">3/10 EIA</span></div>
+    <div class="ni">EIA: Brent 향후 2개월 $95+, Q3 $80↓, 연말 $70</div>
+    <div class="nd">중동 분쟁 지속 가정 기준. 미국 원유 생산 136만b/d 상향. 2027년 평균 $64. 불확실성 매우 높음.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tk">한국</span><span class="nt">3/10 종가</span></div>
+    <div class="ni">KOSPI 5,533 ▲+5.35% 급등 마감</div>
+    <div class="nd">트럼프 종전 시사 + 유가 하락 동시 소화. 삼성전자 ▲+8.3%, SK하이닉스 ▲+12.2%, 현대차 ▲+3.6%. 외국인·기관 동반 매수.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tk">한국</span><span class="nt">3/9</span></div>
+    <div class="ni">KOSPI 서킷브레이커 발동 (5,132) — 원화 1,494원 ▼하락 (2009년 이후 최저)</div>
+    <div class="nd">유가 $100 돌파로 10:31 서킷브레이커. 정부 30년 만의 연료가격상한제 시행. 이재명 대통령 100조원 시장안정프로그램 긴급 가동.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tk">한국</span><span class="nt">3/9 종가</span></div>
+    <div class="ni">삼성전자 ▼−7.81%, SK하이닉스 ▼−9.52%, KOSPI ▼−5.96%</div>
+    <div class="nd">현대차 ▼−8.32%, LG에너지 ▼−4.77%, 기아 ▼−8.14%, 한화에어로 ▼−3.17%. 외국인 3.2조 순매도. 사이드카 장전 발동.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tw">전쟁</span><span class="nt">3/6</span></div>
+    <div class="ni">트럼프 "이란에 무조건 항복만 수용" — 협상 강경 기조</div>
+    <div class="nd">협상 유연성 제한. 이란 강경파 반발 강화. 오만 채널 진전에도 근본 해결 난항.</div>
+  </div>
+
+  <div class="nc">
+    <div class="nm"><span class="tag tk">한국</span><span class="nt">3/4 → 개전 후</span></div>
+    <div class="ni">KOSPI 6,347(52주 최고) → 3/9 5,132 ▼급락 — 누적 ▼−18%</div>
+    <div class="nd">2/25 6,000 돌파, 3/4 6,347 최고. 이란전쟁 충격으로 3/5~3/6 이틀간 ▼−18% 급락. 3/12 현재 5,720대로 부분 상승.</div>
+
+<!-- ##NEWS_E## -->
+  </div>
+</div>
+
+<!-- IRAN SCENARIO -->
+<div id="pane-scenario" class="pn">
+  <div class="scr">
+    <div class="scc sl2" id="cl" onclick="sc('long')">
+      <div class="scp" style="color:var(--red)">65~75%</div>
+      <div class="scn">장기전 시나리오</div>
+      <div class="pb"><div class="pf" style="width:70%;background:var(--red)"></div></div>
+    </div>
+    <div class="scc" id="cs" onclick="sc('short')">
+      <div class="scp" style="color:var(--green)">25~35%</div>
+      <div class="scn">단기종결 시나리오</div>
+      <div class="pb"><div class="pf" style="width:30%;background:var(--green)"></div></div>
+    </div>
+  </div>
+  <div class="scsum" id="scsum"></div>
+  <div class="sl">KEY DRIVERS</div>
+  <div id="scdrv"></div>
+  <div class="sl">MARKET IMPACT</div>
+  <div class="ir" id="scimp"></div>
+</div>
+
+<!-- STOCKS -->
+<div id="pane-stocks" class="pn">
+  <div id="stbody"></div>
+</div>
+
+<!-- OIL -->
+<div id="pane-oil" class="pn">
+  <div class="kp3">
+    <div class="kp">
+      <div class="kpl">전쟁 이전 (2/28)</div>
+      <div class="kpv" style="color:var(--txt2)">$69</div>
+      <div class="kps">개전 직전 Brent</div>
+    </div>
+    <div class="kp">
+      <div class="kpl">52주 최고 (3/9)</div>
+      <div class="kpv" style="color:var(--red)">$119</div>
+      <div class="kps">ICE 52주 최고가</div>
+    </div>
+    <div class="kp">
+      <div class="kpl">현재 (3/12 장중)</div>
+      <div class="kpv" style="color:var(--yel)">$91.60</div>
+      <div class="kps">Brent ICE 선물</div>
+    </div>
+  </div>
+  <div class="sl">EIA 공식 전망 (2026-03-10)</div>
+  <div class="fr"><div class="fp">현재~Q2 2026</div><div class="fb"><div class="ff" style="width:82%;background:var(--red)"></div></div><div class="fv" style="color:var(--red)">&gt;$95</div></div>
+  <div class="fr"><div class="fp">Q3 2026</div><div class="fb"><div class="ff" style="width:52%;background:var(--yel)"></div></div><div class="fv" style="color:var(--yel)">&lt;$80</div></div>
+  <div class="fr"><div class="fp">Q4 2026 연말</div><div class="fb"><div class="ff" style="width:37%;background:var(--blue)"></div></div><div class="fv">~$70</div></div>
+  <div class="fr"><div class="fp">2027년 평균</div><div class="fb"><div class="ff" style="width:42%;background:var(--txt3)"></div></div><div class="fv" style="color:var(--txt2)">~$64</div></div>
+  <div class="sl">시나리오별 경로</div>
+  <div class="fr"><div class="fp" style="color:var(--red)">장기전 (65~75%)</div><div class="fb"><div class="ff" style="width:88%;background:var(--red)"></div></div><div class="fv" style="color:var(--red)">$100+</div></div>
+  <div class="fr"><div class="fp" style="color:var(--green)">단기종결 (25~35%)</div><div class="fb"><div class="ff" style="width:45%;background:var(--green)"></div></div><div class="fv" style="color:var(--green)">$70~80</div></div>
+  <div class="wb">
+    <div class="wt">⚠ S-OIL 리스크 경고</div>
+    <div class="wbd">3/10 WTI 단일일 <span class="hl">▼−19%</span> ($77 이탈 후 $89 상승). 유가 급등락이 정제마진 역전 + 재고평가손으로 직결. 과거 단일일 <span class="hl">▼−28.6%</span> 전례. 단기 트레이딩 외 비중 확대 금지.<br><br>
+    <span style="color:var(--cyn)">▶ 한전 역발상:</span> EIA 연말 $70 실현 시 연료비 하락 → 적자 구조 개선. 30년 만의 연료가격상한제 종료 시점도 주목.</div>
+  </div>
+  <div class="src">Source: EIA STEO 2026-03-10 · ICE Brent 52wk $58.40~$119.50 · Yahoo Finance / TradingEconomics 2026-03-12 장중</div>
+</div>
+
+<script>
+const DAYS=['일','월','화','수','목','금','토'];
+function tick(){
+  const n=new Date();
+  document.getElementById('clk').textContent=
+    [n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
+  document.getElementById('dts').textContent=
+    `${n.getFullYear()}.${String(n.getMonth()+1).padStart(2,'0')}.${String(n.getDate()).padStart(2,'0')} (${DAYS[n.getDay()]})`;
+}
+setInterval(tick,1000);tick();
+
+// ##TICKS_S##
+const TICKS=[
+  {l:'KOSPI',     v:'5,720',   c:'▲ +187.78 (+3.39%)', cl:'up'},
+  {l:'KOSDAQ',    v:'810',     c:'▲ 장중 상승',          cl:'up'},
+  {l:'BRENT',     v:'$91.60',  c:'▲ 일중 $86~$93',      cl:'up'},
+  {l:'WTI',       v:'$88.10',  c:'▲ 소폭 상승',          cl:'up'},
+  {l:'USD/KRW',   v:'1,470',   c:'▼ 원화 상승',          cl:'dn'},
+  {l:'S&P FUT',   v:'6,801',   c:'▲ +14.25 (+0.21%)',   cl:'up'},
+  {l:'GOLD',      v:'$5,193',  c:'▼ −48.60 (−0.93%)',   cl:'dn'},
+  {l:'VIX',       v:'24.77',   c:'▼ −0.16 (−0.64%)',    cl:'dn'},
+  {l:'10Y UST',   v:'4.136%',  c:'▼ 하락',               cl:'dn'},
+  {l:'NAT GAS',   v:'$3.82',   c:'▲ +7.9%',              cl:'up'},
+  {l:'KOSPI 고점', v:'6,347',  c:'▼ 고점比 −9.8%',       cl:'neu'},
+  {l:'원화 저점',  v:'1,494',  c:'3/9 (09년 이후 최저)', cl:'neu'},
+];
+// ##TICKS_E##
+document.getElementById('ti').innerHTML=
+  TICKS.concat(TICKS).map(t=>
+    `<div class="tc"><span class="tl">${t.l}</span><span class="tv">${t.v}</span><span class="tc2 ${t.cl}">${t.c}</span></div>`
+  ).join('');
+
+function go(id,btn){
+  document.querySelectorAll('.pn').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tb2').forEach(b=>b.classList.remove('on'));
+  document.getElementById('pane-'+id).classList.add('on');
+  btn.classList.add('on');
+}
+
+// ##SCD_S##
+const SCD={
+  long:{
+    col:'var(--red)',
+    sum:'미국-이스라엘 이란 공습(2/28 개전, D+12) 이후 호르무즈 해협 유조선 통항이 전면 중단 중이다. 트럼프의 "무조건 항복만 수용" 강경 기조와 이란 강경파의 거부권이 맞물려 외교 돌파구가 좁다. EIA는 향후 2개월 Brent $95+ 를 공식 전망했다.',
+    drivers:[
+      {t:'호르무즈 통항 D+12 전면 중단', d:'2/28 개전 이후 유조선 통과 중단. 세계 원유 20% 차단. SPR 방출 효과 제한적.'},
+      {t:'트럼프 "무조건 항복만 수용"', d:'3/6 발언으로 협상 유연성 제한. 오만 채널 진전에도 강경 기조 유지.'},
+      {t:'이라크·쿠웨이트 연쇄 감산', d:'이란 압력으로 이라크 남부 감산 착수. 걸프 산유국 연쇄 확산 중.'},
+      {t:'이란 강경파 거부권', d:'핵협상 진전 시 강경파 사보타주 가능. 3/12 이란 외교 신호에도 내부 균열 상존.'},
+      {t:'IEA SPR 방출 한계', d:'역대 최대 방출 검토 중이나 호르무즈 미재개 시 물리적 공급 불가.'},
+      {t:'글로벌 스태그플레이션', d:'에너지 쇼크 + 공급망 붕괴 → Fed 딜레마. 한국 연료가격상한제 시행. IMF 신흥국 외환위기 경고.'},
+    ],
+    oil:'$91.60 → $100+ 급등 위험',
+    kospi:'5,700~5,900 상한 제한. 방산·LNG주 상승 지속. 에너지 수입국 구조적 부담.',
+  },
+  short:{
+    col:'var(--green)',
+    sum:'3/12 테헤란이 핵외교 재개 및 투자 개방 신호를 보내며 단기종결 기대가 상승했다. 오만 채널 재가동과 이란 경제 압박이 가세. 실현 시 Brent $70~80대 급락 가능.',
+    drivers:[
+      {t:'3/12 이란 투자개방 신호', d:'테헤란, 미국 기업 투자 허용 카드 제시. 우라늄 협상 여지 시사. 유가 전쟁 프리미엄 하락.'},
+      {t:'오만 채널 협상 재가동', d:'미국-이란 비공개 채널 재가동 확인. "긍정적 대화" 평가. 강경파 거부권이 변수.'},
+      {t:'트럼프 시장 관리 욕구', d:'3/10 발언 패턴 — 유가 급등 시 종전 시사. 경제 부담·지지율 고려. 발언 재활용 가능.'},
+      {t:'G7·IEA SPR 공조', d:'대규모 방출 발표 시 유가 단기 급락 트리거.'},
+      {t:'이란 경제 압박', d:'전쟁 + 제재 이중 압박. 이란 GDP 급락. 온건파 협상 요구 상승.'},
+    ],
+    oil:'$91.60 → $70~80 급락',
+    kospi:'KOSPI 6,000 재도전 가능. 에너지주 급락 주의. 소비재·수출주 상승 기대.',
+  }
+};
+
+// ##SCD_E##
+function sc(id){
+  const d=SCD[id];
+  document.getElementById('cl').className='scc'+(id==='long'?' sl2':'');
+  document.getElementById('cs').className='scc'+(id==='short'?' ss':'');
+  document.getElementById('scsum').textContent=d.sum;
+  document.getElementById('scdrv').innerHTML=d.drivers.map(v=>
+    `<div class="drv"><div class="dt" style="color:${d.col}">${v.t}</div><div class="dd">${v.d}</div></div>`).join('');
+  document.getElementById('scimp').innerHTML=
+    `<div class="ic"><div class="il">유가 경로</div><div class="iv" style="color:${d.col}">${d.oil}</div></div>
+     <div class="ic"><div class="il">KOSPI 영향</div><div class="iv">${d.kospi}</div></div>`;
+}
+sc('long');
+
+// ##STOCKS_S##
+const STOCKS=[
+  {name:'삼성전자',          th:'반도체',      tc:'tsm',act:'분할매수',ac:'aby',risk:2,
+   desc:'3/12 ▲+1.17% 상승 중. 3/10 ▲+8.3% 급등. 이란전쟁 무관 펀더멘털. 원화 하락 수출 수혜. 목표가 227,000원.'},
+  {name:'SK하이닉스',        th:'반도체',      tc:'tsm',act:'분할매수',ac:'aby',risk:2,
+   desc:'3/12 ▲+2.03% 상승 중. 3/10 ▲+12.2% 폭등. AI 서버 메모리 수요 견고. 이란전쟁 무관 AI 사이클 플레이.'},
+  {name:'삼성바이오로직스',  th:'제약',        tc:'tsm',act:'관심',   ac:'awa',risk:2,
+   desc:'3/12 ▲+4.08% 강세. 지정학 무관 방어주. 중동 리스크 회피 자금 유입 가능.'},
+  {name:'한화에어로스페이스',th:'방산',        tc:'tdf',act:'보유',   ac:'aho',risk:3,
+   desc:'3/9 ▼−3.17% 이익실현 확인. 장기전 시나리오 수혜 유지. 중동 추가 수주 기대.'},
+  {name:'LIG넥스원',         th:'방산',        tc:'tdf',act:'보유',   ac:'aho',risk:3,
+   desc:'천궁-II 중동 수출. 장기전 최대 직접 수혜주. 수주잔고 분기 확인 필수.'},
+  {name:'한국카본',          th:'LNG+방산소재',tc:'tlg',act:'관심',   ac:'awa',risk:3,
+   desc:'LNG선 단열재 1위. 호르무즈 차단 → 대체 LNG 수요 상승 수혜. 방산소재 이중 테마.'},
+  {name:'한국가스공사',      th:'에너지',      tc:'ten',act:'관심',   ac:'awa',risk:3,
+   desc:'EIA 연말 $70 실현 시 원가 하락 수혜. 30년 만의 연료가격상한제 수혜 가능. 부채 리스크 상존.'},
+  {name:'한국전력',          th:'역발상',      tc:'trv',act:'관심',   ac:'awa',risk:3,
+   desc:'연료가격상한제 지원 + 유가 하락 전환 시 이중 수혜. 진입 타이밍·정치 리스크 병행 관찰.'},
+  {name:'S-Oil',            th:'에너지',      tc:'ten',act:'주의',   ac:'awn',risk:5,
+   desc:'⚠ 3/10 WTI ▼−19% 재현 위험 상시 존재. 정제마진 역전 + 재고평가손. 과거 단일일 ▼−28.6% 전례. 단기 트레이딩만.'},
+];
+// ##STOCKS_E##
+document.getElementById('stbody').innerHTML=STOCKS.map(s=>{
+  const dots=[1,2,3,4,5].map(i=>{
+    const c=i<=s.risk?(s.risk>=4?'var(--red)':s.risk>=3?'var(--yel)':'var(--green)'):'var(--bd2)';
+    return `<div class="rdot" style="background:${c}"></div>`;
+  }).join('');
+  return `<div class="sc2">
+    <div class="st">
+      <div><div class="sn">${s.name}</div><span class="sth ${s.tc}">${s.th}</span><div class="rd">${dots}</div></div>
+      <span class="sa ${s.ac}">${s.act}</span>
+    </div>
+    <div class="sb">${s.desc}</div>
+  </div>`;
+}).join('');
+
+// ── Tab listeners (data-pane) ────────────────────
+(function(){
+  document.querySelectorAll('[data-pane]').forEach(function(b){
+    b.addEventListener('click',function(){go(this.dataset.pane,this);});
+  });
+})();
+// ── Auto-reload every 5 min
+setTimeout(function(){location.reload();},300000);
+</script>
+</body>
+</html>
