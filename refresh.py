@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 # 설정
 # ─────────────────────────────────────────
 ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-DART_KEY      = os.environ.get('DART_API_KEY', '5b169dc55a218552b6b0bb83b3662bf15e111521')
+DART_KEY      = os.environ.get('DART_API_KEY', '')
 HTML_FILE     = 'hloomberg.html'
 
 KST = timezone(timedelta(hours=9))
@@ -408,8 +408,10 @@ def fetch_krx_kind():
         print(f'  KIND RSS fail: {e}')
         return []
 
-dart_items = fetch_dart_list()
+dart_items = fetch_dart_list() if DART_KEY else []
 if not dart_items:
+    if not DART_KEY:
+        print('  DART_API_KEY 없음 — KIND RSS fallback')
     dart_items = fetch_krx_kind()
 print(f'  공시: {len(dart_items)}건')
 
@@ -601,6 +603,13 @@ def patch(html, s_marker, e_marker, content):
 
 with open(HTML_FILE, encoding='utf-8') as f:
     html = f.read()
+
+# ── Anthropic API 키 주입 (GitHub Secret → HTML, 키가 소스코드에 노출되지 않음)
+if ANTHROPIC_KEY:
+    html = html.replace("'##ANTHROPIC_KEY##'", f"'{ANTHROPIC_KEY}'")
+    print(f'  API key injected (length: {len(ANTHROPIC_KEY)})')
+else:
+    print('  WARNING: ANTHROPIC_API_KEY not set — Haiku on-demand calls will fail')
 
 # ── 타임스탬프
 html = patch(html, '<!-- ##TS_S## -->', '<!-- ##TS_E## -->', f'🔄 {TS} · {len(kr_news)}국내 · {len(gl_news)}해외 · {len(dart_items)}공시')
