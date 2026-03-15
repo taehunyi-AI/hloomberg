@@ -2,10 +2,22 @@ name: HLOOMBERG Refresh
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
-    - cron: '0 22 * * *'
-    - cron: '0 6 * * *'
-    - cron: '0 14 * * *'
+    # KST 06:00-23:00 weekdays (UTC 21:00-14:00, Mon-Fri)
+    # UTC Mon 21:00 = KST Tue 06:00 ... UTC Fri 14:00 = KST Fri 23:00
+    - cron: '*/5 21-23 * * 0'
+    - cron: '*/5 0-14  * * 1'
+    - cron: '*/5 21-23 * * 1'
+    - cron: '*/5 0-14  * * 2'
+    - cron: '*/5 21-23 * * 2'
+    - cron: '*/5 0-14  * * 3'
+    - cron: '*/5 21-23 * * 3'
+    - cron: '*/5 0-14  * * 4'
+    - cron: '*/5 21-23 * * 4'
+    - cron: '*/5 0-14  * * 5'
+    # Stock analysis: KST 07:00 / 15:00 / 23:00 weekdays
+    - cron: '0 22 * * 1-5'
+    - cron: '0 6  * * 1-5'
+    - cron: '0 14 * * 1-5'
   workflow_dispatch:
     inputs:
       mode:
@@ -39,7 +51,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
-          STOCK_MODE: ${{ (github.event.schedule == '0 22 * * *' || github.event.schedule == '0 6 * * *' || github.event.schedule == '0 14 * * *' || github.event.inputs.mode == 'stock') && '1' || '0' }}
+          STOCK_MODE: ${{ (github.event.schedule == '0 22 * * 1-5' || github.event.schedule == '0 6 * * 1-5' || github.event.schedule == '0 14 * * 1-5' || github.event.inputs.mode == 'stock') && '1' || '0' }}
         run: python refresh.py
 
       - name: Commit & Push
