@@ -576,6 +576,79 @@ else:
     print('  ANTHROPIC_API_KEY 없음 — AI 분석 스킵')
 
 # ─────────────────────────────────────────
+# 5-2. 뉴스/공시 요약 (새 항목만, 중복 스킵)
+# ─────────────────────────────────────────
+kr_news_summaries = {}
+gl_news_summaries = {}
+dart_summaries    = {}
+
+if ANTHROPIC_KEY:
+    # 기존 캐시 로드
+    try:
+        with open(HTML_FILE, encoding='utf-8') as f:
+            existing_html = f.read()
+
+        def extract_cache(marker_s, marker_e, html_content):
+            m = re.search(re.escape(marker_s) + r'\s*\nconst \w+=(\{.*?\});\s*\n' + re.escape(marker_e), html_content, re.DOTALL)
+            if m:
+                try: return json.loads(m.group(1))
+                except: pass
+            return {}
+
+        kr_news_summaries = extract_cache('// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', existing_html)
+        gl_news_summaries = extract_cache('// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', existing_html)
+        dart_summaries    = extract_cache('// ##DART_SUMMARIES_S##',    '// ##DART_SUMMARIES_E##',    existing_html)
+        print(f'  캐시 로드: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)}')
+    except Exception as e:
+        print(f'  캐시 로드 실패: {e}')
+
+    def summarize_news(items, existing_cache, label, system_prompt, max_new=20):
+        cache = dict(existing_cache)
+        new_count = 0
+        for n in items[:max_new]:
+            key = n['title'][:30]
+            if key in cache:
+                continue  # 중복 스킵
+            try:
+                t = call_claude('claude-sonnet-4-20250514', system_prompt,
+                    f"제목: {n['title']}\n출처: {n.get('src','')}\n태그: {n.get('tag','')}", 800)
+                t_html = HE(t.replace('**','').replace('*',''))
+                t_html = re.sub(r'^- ', '• ', t_html, flags=re.MULTILINE)
+                cache[key] = {'html': t_html, 'ts': TS_SHORT}
+                new_count += 1
+                time.sleep(0.3)
+            except Exception as e:
+                print(f'  요약 FAIL [{label}] {n["title"][:20]}: {e}')
+        print(f'  {label}: 신규 {new_count}건 요약 (캐시 총 {len(cache)}건)')
+        return cache
+
+    def summarize_dart(items, existing_cache, max_new=20):
+        cache = dict(existing_cache)
+        new_count = 0
+        for d in items[:max_new]:
+            key = d['title'][:30]
+            if key in cache:
+                continue
+            try:
+                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 한국어. 투자자 관점 핵심 요약. 3~4단락.',
+                    f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}", 600)
+                t_html = HE(t.replace('**','').replace('*',''))
+                cache[key] = {'html': t_html, 'ts': TS_SHORT}
+                new_count += 1
+                time.sleep(0.3)
+            except Exception as e:
+                print(f'  공시요약 FAIL {d["title"][:20]}: {e}')
+        print(f'  공시요약: 신규 {new_count}건 (캐시 총 {len(cache)}건)')
+        return cache
+
+    print(f'\n[뉴스/공시 요약] 새 항목만 처리...')
+    kr_news_summaries = summarize_news(kr_news, kr_news_summaries, '국내뉴스',
+        '뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.')
+    gl_news_summaries = summarize_news(gl_news, gl_news_summaries, '해외뉴스',
+        '뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.')
+    dart_summaries    = summarize_dart(dart_items, dart_summaries)
+
+# ─────────────────────────────────────────
 # 6. HTML 패치
 # ─────────────────────────────────────────
 print(f'\n[패치] {HTML_FILE} 패치 중...')
@@ -590,13 +663,6 @@ def patch(html, s_marker, e_marker, content):
 
 with open(HTML_FILE, encoding='utf-8') as f:
     html = f.read()
-
-# ── Anthropic API 키 주입 (GitHub Secret → HTML, 키가 소스코드에 노출되지 않음)
-if ANTHROPIC_KEY:
-    html = html.replace("'##ANTHROPIC_KEY##'", f"'{ANTHROPIC_KEY}'")
-    print(f'  API key injected (length: {len(ANTHROPIC_KEY)})')
-else:
-    print('  WARNING: ANTHROPIC_API_KEY not set — Haiku on-demand calls will fail')
 
 # ── 타임스탬프
 html = patch(html, '<!-- ##TS_S## -->', '<!-- ##TS_E## -->', f'🔄 {TS} · {len(kr_news)}국내 · {len(gl_news)}해외 · {len(dart_items)}공시')
@@ -659,6 +725,22 @@ def news_to_js(items):
 
 html = patch(html, '// ##KR_NEWS_DATA_S##', '// ##KR_NEWS_DATA_E##', f'\nconst KR_NEWS=\n{news_to_js(kr_news)};\n')
 html = patch(html, '// ##GL_NEWS_DATA_S##', '// ##GL_NEWS_DATA_E##', f'\nconst GL_NEWS=\n{news_to_js(gl_news)};\n')
+
+# ── 뉴스/공시 요약 캐시 패치
+def summaries_to_js(cache, var_name):
+    lines = [f'const {var_name}={{']
+    for key, v in cache.items():
+        h = JE(v['html'])
+        t = JE(v['ts'])
+        k = JE(key)
+        lines.append(f"  '{k}':{{html:'{h}',ts:'{t}'}},")
+    lines.append('};')
+    return '\n' + '\n'.join(lines) + '\n'
+
+html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
+html = patch(html, '// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', summaries_to_js(gl_news_summaries, 'GL_NEWS_SUMMARIES'))
+html = patch(html, '// ##DART_SUMMARIES_S##',    '// ##DART_SUMMARIES_E##',    summaries_to_js(dart_summaries,    'DART_SUMMARIES'))
+print(f'  SUMMARIES: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)}')
 
 def dart_to_js(items):
     lines = ['[']
