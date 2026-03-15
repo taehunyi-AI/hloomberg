@@ -25,6 +25,21 @@ NOW = datetime.now(KST)
 TS  = NOW.strftime('%Y-%m-%d %H:%M KST')
 TS_SHORT = NOW.strftime('%m/%d %H:%M')
 
+# 주말 감지 (0=월 ... 6=일)
+IS_WEEKEND = NOW.weekday() >= 5  # 토(5), 일(6)
+# 직전 영업일 계산 (주말이면 금요일 기준)
+def last_biz_day(dt, n=1):
+    d = dt
+    count = 0
+    while count < n:
+        d -= timedelta(days=1)
+        if d.weekday() < 5:
+            count += 1
+    return d
+
+ANALYSIS_BASE = '전주 금요일 마감 데이터 기준 분석' if IS_WEEKEND else '당일 실시간 데이터 기준 분석'
+DATA_BGN_DATE = last_biz_day(NOW, 5).strftime('%Y%m%d')  # 최근 5영업일 시작
+
 SESS = requests.Session()
 SESS.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0',
@@ -192,10 +207,10 @@ def fetch_chart_data(sym, days=90):
             closes = j['indicators']['quote'][0]['close']
             pts = []
             for ts, c in zip(timestamps, closes):
-                if c is not None:
+                if c is not None and c > 0:  # null 및 0 제거
                     dt = datetime.fromtimestamp(ts, tz=KST).strftime('%m/%d')
-                    pts.append({'d': dt, 'v': round(c, 2)})
-            return pts[-days:] if len(pts) > days else pts
+                    pts.append({'d': dt, 'v': round(float(c), 2)})
+            return pts  # 실제 수신된 데이터만 반환
         except: pass
     return []
 
@@ -397,9 +412,9 @@ print(f'\n[공시] DART 수집...')
 dart_items = []
 
 def fetch_dart_list():
-    """OpenDART API - 전체 공시 (당일)"""
+    """OpenDART API - 최근 5영업일 공시"""
     today = NOW.strftime('%Y%m%d')
-    url = f'https://opendart.fss.or.kr/api/list.json?crtfc_key={DART_KEY}&bgn_de={today}&end_de={today}&page_count=40'
+    url = f'https://opendart.fss.or.kr/api/list.json?crtfc_key={DART_KEY}&bgn_de={DATA_BGN_DATE}&end_de={today}&page_count=40'
     r = safe_get(url)
     if not r: return []
     try:
@@ -602,6 +617,7 @@ if ANTHROPIC_KEY:
     research_str = '\n'.join([f"{r['firm']} - {r['title']}({r['stock']})" for r in research_items[:10]]) or '없음'
 
     combined_prompt = (
+        f'[분석기준] {ANALYSIS_BASE}\n\n'
         f'[시세]\n{price_str}\n\n'
         f'[국내뉴스]\n{kr_str}\n\n'
         f'[해외뉴스]\n{gl_str}\n\n'
@@ -626,11 +642,16 @@ if ANTHROPIC_KEY:
             f = re.sub(r'^- ', '• ', f, flags=re.MULTILINE)
             f_html = HE(f)
             full_html += f'<div class="ai-section"><div class="ai-body">{f_html}</div></div>'
-            lo = p.lower()
-            if lo.startswith('bias'):       ai_sections['bias']     = f_html
-            elif lo.startswith('forecast'): ai_sections['forecast'] = f_html
-            elif lo.startswith('picks'):    ai_sections['picks']    = f_html
-            elif lo.startswith('risk'):     ai_sections['risk']     = f_html
+            # 첫 줄에서 섹션명 추출
+            first_line = p.strip().split('\n')[0].lower().strip()
+            if 'bias' in first_line or '편향' in first_line:
+                ai_sections['bias']     = f_html
+            elif 'forecast' in first_line or '전망' in first_line:
+                ai_sections['forecast'] = f_html
+            elif 'picks' in first_line or '추천' in first_line:
+                ai_sections['picks']    = f_html
+            elif 'risk' in first_line or '리스크' in first_line:
+                ai_sections['risk']     = f_html
         ai_sections['full'] = full_html
         ai_ts = TS_SHORT
         print(f'  종합분석 OK ({len(full_html)} chars)')
@@ -695,15 +716,21 @@ if ANTHROPIC_KEY:
     def summarize_news(items, existing_cache, label, system_prompt, max_new=20):
         cache = dict(existing_cache)
         new_count = 0
+        sys_prompt = system_prompt + ' 마크다운 헤더(###,##,#) 절대 사용 금지. 단락 구분은 빈 줄로만 할 것. 음슴체로 작성 (~임, ~함, ~됨).'
         for n in items[:max_new]:
             key = n['title'][:30]
             if key in cache:
-                continue  # 중복 스킵
+                continue
             try:
-                t = call_claude('claude-sonnet-4-20250514', system_prompt,
-                    f"제목: {n['title']}\n출처: {n.get('src','')}\n태그: {n.get('tag','')}", 800)
-                t_html = HE(t.replace('**','').replace('*',''))
-                t_html = re.sub(r'^- ', '• ', t_html, flags=re.MULTILINE)
+                t = call_claude('claude-sonnet-4-20250514', sys_prompt,
+                    f"제목: {n['title']}\n출처: {n.get('src','')}\n태그: {n.get('tag','')}", 1200)
+                # ### 헤더 → <strong> 변환 후 나머지 마크다운 제거
+                t = re.sub(r'^#{1,4}\s*(.+)$', r'<strong>\1</strong>', t, flags=re.MULTILINE)
+                t = t.replace('**','').replace('*','')
+                t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
+                # 단락 → <p> 변환
+                paras = [p.strip() for p in t.strip().split('\n\n') if p.strip()]
+                t_html = ''.join([f'<p style="margin:0 0 8px 0">{HE(p)}</p>' if not p.startswith('<strong>') else f'<p style="margin:8px 0 4px 0;color:var(--blue)">{p}</p>' for p in paras])
                 cache[key] = {'html': t_html, 'ts': TS_SHORT}
                 new_count += 1
                 time.sleep(0.3)
@@ -720,9 +747,12 @@ if ANTHROPIC_KEY:
             if key in cache:
                 continue
             try:
-                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 투자자 관점 핵심 요약. 3~4단락.',
-                    f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}", 600)
-                t_html = HE(t.replace('**','').replace('*',''))
+                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 투자자 관점 핵심 요약. 마크다운 헤더(###,##) 사용 금지. 단락으로만 작성.',
+                    f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}", 800)
+                t = re.sub(r'^#{1,4}\s*', '', t, flags=re.MULTILINE)
+                t = t.replace('**','').replace('*','')
+                t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
+                t_html = HE(t.strip())
                 cache[key] = {'html': t_html, 'ts': TS_SHORT}
                 new_count += 1
                 time.sleep(0.3)
@@ -732,10 +762,17 @@ if ANTHROPIC_KEY:
         return cache
 
     print(f'\n[뉴스/공시 요약] 새 항목만 처리 (1회 최대 3건)...')
+    # 기존 캐시에서 ### 마크다운이 남아있는 항목 제거 (재생성 대상)
+    def clean_cache(cache):
+        return {k: v for k, v in cache.items() if '###' not in v.get('html','') and '##' not in v.get('html','')}
+    kr_news_summaries = clean_cache(kr_news_summaries)
+    gl_news_summaries = clean_cache(gl_news_summaries)
+    dart_summaries    = clean_cache(dart_summaries)
+
     kr_news_summaries = summarize_news(kr_news, kr_news_summaries, '국내뉴스',
-        '뉴스 제목 기반 상세 내용 한국어 작성. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 배경/핵심/시장영향/투자시사점 4~6단락.', max_new=3)
+        '한국 금융/경제 뉴스 전문 기자. 한국어. 음슴체로 작성(~임,~함,~됨). 존댓말 금지. 마크다운 헤더(###,##,#) 절대 사용 금지. 단락 구분만 사용. 배경/핵심내용/시장영향/투자시사점 순으로 4~5단락으로 완전하게 작성.', max_new=3)
     gl_news_summaries = summarize_news(gl_news, gl_news_summaries, '해외뉴스',
-        '뉴스 제목 기반 상세 내용 한국어 작성. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 배경/핵심/시장영향/투자시사점 4~6단락.', max_new=3)
+        '글로벌 금융/경제 뉴스 전문 기자. 한국어. 음슴체로 작성(~임,~함,~됨). 존댓말 금지. 마크다운 헤더(###,##,#) 절대 사용 금지. 단락 구분만 사용. 배경/핵심내용/시장영향/투자시사점 순으로 4~5단락으로 완전하게 작성.', max_new=3)
     dart_summaries    = summarize_dart(dart_items, dart_summaries, max_new=3)
 
 # ─────────────────────────────────────────
@@ -755,7 +792,9 @@ with open(HTML_FILE, encoding='utf-8') as f:
     html = f.read()
 
 # ── 타임스탬프
+ts_unix = int(NOW.timestamp() * 1000)
 html = patch(html, '<!-- ##TS_S## -->', '<!-- ##TS_E## -->', f'🔄 {TS} · {len(kr_news)}국내 · {len(gl_news)}해외 · {len(dart_items)}공시')
+html = re.sub(r'id="refresh-ts-bar"', f'id="refresh-ts-bar" data-ts="{ts_unix}"', html)
 html = re.sub(r'<!-- ##TS_SHORT_S## -->.*?<!-- ##TS_SHORT_E## -->', f'<!-- ##TS_SHORT_S## -->{TS_SHORT}<!-- ##TS_SHORT_E## -->', html)
 
 # ── 시세 티커
