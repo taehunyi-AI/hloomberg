@@ -174,6 +174,41 @@ def make_ticks_js():
     lines.append('];')
     return '\n'.join(lines)
 
+# 원자재 90일 차트 데이터 수집
+CMDTY_CHART_SYMS = {
+    'BRENT': 'BZ=F', 'WTI': 'CL=F', 'GOLD': 'GC=F',
+    'NATGAS': 'NG=F', 'SILVER': 'SI=F', 'COPPER': 'HG=F',
+}
+cmdty_chart = {}
+
+def fetch_chart_data(sym, days=90):
+    for q in ('query1', 'query2'):
+        try:
+            url = f'https://{q}.finance.yahoo.com/v8/finance/chart/{requests.utils.quote(sym)}?interval=1d&range={days}d'
+            r = SESS.get(url, timeout=8, headers={'Referer':'https://finance.yahoo.com','Accept':'application/json'})
+            if not r.ok: continue
+            j = r.json()['chart']['result'][0]
+            timestamps = j['timestamp']
+            closes = j['indicators']['quote'][0]['close']
+            pts = []
+            for ts, c in zip(timestamps, closes):
+                if c is not None:
+                    dt = datetime.fromtimestamp(ts, tz=KST).strftime('%m/%d')
+                    pts.append({'d': dt, 'v': round(c, 2)})
+            return pts[-days:] if len(pts) > days else pts
+        except: pass
+    return []
+
+print('\n[원자재 차트] 90일 데이터 수집...')
+for key, sym in CMDTY_CHART_SYMS.items():
+    pts = fetch_chart_data(sym, 90)
+    if pts:
+        cmdty_chart[key] = pts
+        print(f'  OK  {key}: {len(pts)}일')
+    else:
+        print(f'  FAIL {key}')
+    time.sleep(0.1)
+
 # ─────────────────────────────────────────
 # 2. 뉴스 수집
 # ─────────────────────────────────────────
@@ -354,6 +389,29 @@ for q, tag, tc in GL_GNEWS:
 gl_news.sort(key=lambda x: x.get('stamp',0), reverse=True)
 gl_news = gl_news[:10]
 print(f'  해외뉴스: {len(gl_news)}건')
+
+# 해외뉴스 제목 한글 번역 (Haiku)
+def translate_titles(items):
+    to_tr = [(i, n) for i, n in enumerate(items) if not re.search(r'[가-힣]', n['title'])]
+    if not to_tr or not ANTHROPIC_KEY: return
+    try:
+        titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
+        result = call_claude('claude-haiku-4-5-20251001',
+            '영문 뉴스 제목을 한국어로 번역. 번호 유지, 번역문만 출력.',
+            f'번역:\n{titles_str}', 1000)
+        for line in result.strip().split('\n'):
+            m = re.match(r'^(\d+)\.\s*(.+)', line.strip())
+            if m:
+                idx = int(m.group(1)) - 1
+                if 0 <= idx < len(to_tr):
+                    orig_idx = to_tr[idx][0]
+                    items[orig_idx]['titleKo'] = m.group(2).strip()
+        print(f'  해외뉴스 제목 번역: {len(to_tr)}건')
+    except Exception as e:
+        print(f'  번역 FAIL: {e}')
+
+if ANTHROPIC_KEY:
+    translate_titles(gl_news)
 
 # ─────────────────────────────────────────
 # 3. DART 공시 수집
@@ -566,13 +624,13 @@ if ANTHROPIC_KEY:
             if not p.strip(): continue
             f = p.replace('**','').replace('*','')
             f = re.sub(r'^- ', '• ', f, flags=re.MULTILINE)
-            f = HE(f)
-            full_html += f'<div class="ai-section"><div class="ai-body">{f}</div></div>'
+            f_html = HE(f)
+            full_html += f'<div class="ai-section"><div class="ai-body">{f_html}</div></div>'
             lo = p.lower()
-            if lo.startswith('bias'):     ai_sections['bias']     = HE(f)
-            elif lo.startswith('forecast'): ai_sections['forecast'] = HE(f)
-            elif lo.startswith('picks'):    ai_sections['picks']    = HE(f)
-            elif lo.startswith('risk'):     ai_sections['risk']     = HE(f)
+            if lo.startswith('bias'):       ai_sections['bias']     = f_html
+            elif lo.startswith('forecast'): ai_sections['forecast'] = f_html
+            elif lo.startswith('picks'):    ai_sections['picks']    = f_html
+            elif lo.startswith('risk'):     ai_sections['risk']     = f_html
         ai_sections['full'] = full_html
         ai_ts = TS_SHORT
         print(f'  종합분석 OK ({len(full_html)} chars)')
@@ -792,10 +850,10 @@ def research_to_js(items):
 
 html = patch(html, '// ##RESEARCH_DATA_S##', '// ##RESEARCH_DATA_E##', f'\nconst RESEARCH_ITEMS=\n{research_to_js(research_items)};\n')
 
-# ── AI 분석 데이터
+# ── AI 분석 데이터 (섹션별 텍스트, full은 HTML 마커로만 패치)
 ai_js = (
     f"const AI_SECTIONS={{\n"
-    f"  full:'{JE(ai_sections['full'])}',\n"
+    f"  full:'',\n"
     f"  bias:'{JE(ai_sections['bias'])}',\n"
     f"  forecast:'{JE(ai_sections['forecast'])}',\n"
     f"  picks:'{JE(ai_sections['picks'])}',\n"
@@ -804,10 +862,21 @@ ai_js = (
 )
 html = patch(html, '// ##AI_DATA_S##', '// ##AI_DATA_E##', '\n' + ai_js + '\n')
 
-# AI분석 HTML 패치 (overview 직접 표시)
+# AI분석 HTML 패치 (<!-- ##AI_S## --> 마커에 직접 삽입)
 if ai_sections['full']:
     html = patch(html, '<!-- ##AI_S## -->', '<!-- ##AI_E## -->', '\n' + ai_sections['full'] + '\n')
 html = patch(html, '<!-- ##AI_TS_S## -->', '<!-- ##AI_TS_E## -->', ai_ts or '대기')
+
+# ── 원자재 차트 데이터
+def cmdty_chart_js(data):
+    lines = ['const CMDTY_CHART={']
+    for key, pts in data.items():
+        pts_js = json.dumps(pts, ensure_ascii=False)
+        lines.append(f"  '{key}':{pts_js},")
+    lines.append('};')
+    return '\n'.join(lines)
+html = patch(html, '// ##CMDTY_CHART_S##', '// ##CMDTY_CHART_E##', '\n' + cmdty_chart_js(cmdty_chart) + '\n')
+print(f'  CMDTY_CHART: {len(cmdty_chart)}개')
 
 # ── 이슈 JS 데이터
 def issues_to_js(items):
@@ -862,23 +931,44 @@ if STOCK_MODE and ANTHROPIC_KEY:
         try:
             t = call_claude(
                 'claude-sonnet-4-20250514',
-                '한국주식 애널리스트. 한국어. 구체적 수치 포함.',
+                '한국주식 전문 애널리스트. 한국어. 구체적 수치와 가격 레벨 명시.',
                 f"[현재시세]\n{price_str}\n\n"
                 f"종목: {s['name']}({s['th']}/{s['mkt']})\n"
-                f"의견: {s['act']}\n기본: {s['desc']}\n\n"
-                f"상세분석:\n"
-                f"1. 펀더멘털 (실적/밸류에이션)\n"
-                f"2. 기술적분석 (지지/저항/추세)\n"
-                f"3. 진입가 3단계\n"
-                f"4. 목표가 3단계\n"
-                f"5. 손절가\n"
-                f"6. 핵심 리스크",
-                1500
+                f"투자의견: {s['act']}\n현황: {s['desc']}\n\n"
+                f"아래 7개 항목을 각각 구체적 수치와 함께 분석:\n\n"
+                f"1. 펀더멘털\n"
+                f"   - 최근 실적 (매출/영업이익 YoY)\n"
+                f"   - PER/PBR/ROE 밸류에이션\n"
+                f"   - 배당수익률\n\n"
+                f"2. 기술적분석\n"
+                f"   - 현재 추세 (상승/하락/횡보)\n"
+                f"   - 5일/20일/60일 이동평균 위치\n"
+                f"   - RSI 과매수/과매도 여부\n"
+                f"   - 핵심 지지선 2개 / 저항선 2개 (구체적 가격)\n"
+                f"   - 볼린저밴드 위치\n"
+                f"   - 거래량 특이사항\n\n"
+                f"3. 진입 전략 (3단계)\n"
+                f"   - 1차 매수가 / 비중\n"
+                f"   - 2차 매수가 / 비중\n"
+                f"   - 3차 매수가 / 비중\n\n"
+                f"4. 목표가 (3단계)\n"
+                f"   - 단기 목표가 (1~2개월)\n"
+                f"   - 중기 목표가 (3~6개월)\n"
+                f"   - 장기 목표가 (12개월)\n\n"
+                f"5. 손절 기준\n"
+                f"   - 손절가 (구체적 가격)\n"
+                f"   - 손절 사유\n\n"
+                f"6. 촉매 / 이벤트\n"
+                f"   - 단기 주가 촉매 (실적발표, 수주 등)\n"
+                f"   - 주의할 리스크 이벤트\n\n"
+                f"7. 종합 의견 (2~3줄 요약)",
+                2000
             )
             # 마크다운 → HTML 변환
             t = t.replace('**', '').replace('*', '')
             t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
-            t = re.sub(r'^(\d+\. )', r'<strong style="color:var(--blue)">\1</strong>', t, flags=re.MULTILINE)
+            t = re.sub(r'^(\d+\. .+)', r'<strong style="color:var(--blue)">\1</strong>', t, flags=re.MULTILINE)
+            t = re.sub(r'^   - ', '  └ ', t, flags=re.MULTILINE)
             stock_analysis[s['name']] = {'html': HE(t), 'ts': TS_SHORT}
             print(f"  OK  {s['name']}")
             time.sleep(0.5)
