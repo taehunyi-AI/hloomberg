@@ -31,7 +31,8 @@ SESS.headers.update({
     'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
 })
 
-print(f"[{TS}] HLOOMBERG refresh start {"[STOCK MODE]" if STOCK_MODE else ""}")
+mode_label = '[STOCK MODE]' if STOCK_MODE else ''
+print(f'[{TS}] HLOOMBERG refresh start {mode_label}')
 
 # ─────────────────────────────────────────
 # 유틸
