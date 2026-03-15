@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 DART_KEY      = os.environ.get('DART_API_KEY', '')
 HTML_FILE     = 'hloomberg.html'
+STOCK_MODE    = os.environ.get('STOCK_MODE', '0') == '1'  # 종목 상세분석 모드
 
 KST = timezone(timedelta(hours=9))
 NOW = datetime.now(KST)
@@ -30,7 +31,7 @@ SESS.headers.update({
     'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
 })
 
-print(f'[{TS}] HLOOMBERG refresh start')
+print(f"[{TS}] HLOOMBERG refresh start {"[STOCK MODE]" if STOCK_MODE else ""}")
 
 # ─────────────────────────────────────────
 # 유틸
@@ -737,9 +738,86 @@ html = patch(html, '<!-- ##ISSUES_GL_S## -->', '<!-- ##ISSUES_GL_E## -->', '\n' 
 html = patch(html, '<!-- ##ISSUES_KR_S## -->', '<!-- ##ISSUES_KR_E## -->', '\n' + issue_list_html(domestic_issues, 'kr') + '\n')
 print(f'  ISSUES: 글로벌 {len(global_issues)}개 · 국내 {len(domestic_issues)}개')
 
+# ─────────────────────────────────────────
+# 7. 종목 상세분석 (1시간마다 STOCK_MODE=1)
+# ─────────────────────────────────────────
+STOCK_LIST = [
+    {'name':'삼성전자',  'th':'반도체', 'mkt':'KOSPI',  'act':'분할매수', 'desc':'이란전쟁 무관. 원화 하락 수출 수혜. 목표 227,000원.'},
+    {'name':'SK하이닉스', 'th':'반도체', 'mkt':'KOSPI',  'act':'분할매수', 'desc':'AI 메모리 수요 견고.'},
+    {'name':'삼성바이오', 'th':'제약',   'mkt':'KOSPI',  'act':'관심',    'desc':'지정학 무관 방어주.'},
+    {'name':'한화에어로', 'th':'방산',   'mkt':'KOSPI',  'act':'보유',    'desc':'중동 수주 기대.'},
+    {'name':'LIG넥스원',  'th':'방산',   'mkt':'KOSPI',  'act':'보유',    'desc':'천궁-II 수출.'},
+    {'name':'한국전력',   'th':'역발상', 'mkt':'KOSPI',  'act':'관심',    'desc':'유가 하락시 이중 수혜.'},
+    {'name':'S-Oil',      'th':'에너지', 'mkt':'KOSPI',  'act':'주의',    'desc':'⚠ WTI ▼-19% 재현 위험.'},
+    {'name':'한국카본',   'th':'LNG소재','mkt':'KOSDAQ', 'act':'관심',    'desc':'LNG선 단열재 1위.'},
+    {'name':'한국가스공사','th':'에너지', 'mkt':'KOSPI', 'act':'관심',    'desc':'EIA 연말 $70시 원가 하락.'},
+]
+
+stock_analysis = {}
+
+if STOCK_MODE and ANTHROPIC_KEY:
+    print(f'\n[종목분석] Sonnet 상세분석 시작 ({len(STOCK_LIST)}개)...')
+    price_str = ' | '.join([f"{k}:{fmt_price(v['p'],k)}({'+' if v['c']>=0 else ''}{v['c']:.2f}%)" for k,v in PRICE_DATA.items()])
+    for s in STOCK_LIST:
+        try:
+            t = call_claude(
+                'claude-sonnet-4-20250514',
+                '한국주식 애널리스트. 한국어. 구체적 수치 포함.',
+                f"[현재시세]\n{price_str}\n\n"
+                f"종목: {s['name']}({s['th']}/{s['mkt']})\n"
+                f"의견: {s['act']}\n기본: {s['desc']}\n\n"
+                f"상세분석:\n"
+                f"1. 펀더멘털 (실적/밸류에이션)\n"
+                f"2. 기술적분석 (지지/저항/추세)\n"
+                f"3. 진입가 3단계\n"
+                f"4. 목표가 3단계\n"
+                f"5. 손절가\n"
+                f"6. 핵심 리스크",
+                1500
+            )
+            # 마크다운 → HTML 변환
+            t = t.replace('**', '').replace('*', '')
+            t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
+            t = re.sub(r'^(\d+\. )', r'<strong style="color:var(--blue)">\1</strong>', t, flags=re.MULTILINE)
+            stock_analysis[s['name']] = {'html': HE(t), 'ts': TS_SHORT}
+            print(f"  OK  {s['name']}")
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"  FAIL {s['name']}: {e}")
+    print(f'  종목분석: {len(stock_analysis)}/{len(STOCK_LIST)} 완료')
+elif STOCK_MODE:
+    print('\n[종목분석] ANTHROPIC_API_KEY 없음 — 스킵')
+
+# 기존 캐시 유지 (STOCK_MODE 아닐 때는 이전 분석 보존)
+if not STOCK_MODE:
+    # HTML에서 기존 STOCK_ANALYSIS 데이터 추출하여 유지
+    m = re.search(r'// ##STOCK_ANALYSIS_S##\s*\nconst STOCK_ANALYSIS=(.*?);\s*\n// ##STOCK_ANALYSIS_E##', html, re.DOTALL)
+    if m:
+        try:
+            existing = json.loads(m.group(1))
+            stock_analysis = existing
+            print(f'  종목분석: 기존 캐시 유지 ({len(stock_analysis)}개)')
+        except:
+            pass
+
+# STOCK_ANALYSIS JS 패치
+def stock_analysis_js(data):
+    if not data:
+        return '\nconst STOCK_ANALYSIS={};\n'
+    lines = ['const STOCK_ANALYSIS={']
+    for name, v in data.items():
+        n_js = JE(name)
+        h_js = JE(v['html'])
+        t_js = JE(v['ts'])
+        lines.append(f"  '{n_js}':{{html:'{h_js}',ts:'{t_js}'}},")
+    lines.append('};')
+    return '\n' + '\n'.join(lines) + '\n'
+
+html = patch(html, '// ##STOCK_ANALYSIS_S##', '// ##STOCK_ANALYSIS_E##', stock_analysis_js(stock_analysis))
+
 # ── 저장
 with open(HTML_FILE, 'w', encoding='utf-8') as f:
     f.write(html)
 
 print(f'\n✅ Done — {TS}')
-print(f'   시세:{len(PRICE_DATA)} 국내뉴스:{len(kr_news)} 해외뉴스:{len(gl_news)} 공시:{len(dart_items)} 리서치:{len(research_items)} AI:{"OK" if ai_sections["full"] else "SKIP"}')
+print(f'   시세:{len(PRICE_DATA)} 국내뉴스:{len(kr_news)} 해외뉴스:{len(gl_news)} 공시:{len(dart_items)} 리서치:{len(research_items)} AI:{"OK" if ai_sections["full"] else "SKIP"} 종목분석:{len(stock_analysis)}')
