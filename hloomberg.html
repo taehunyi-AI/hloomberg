@@ -191,7 +191,7 @@ document.querySelectorAll('[data-pane]').forEach(function(b){
 /* ── Claude API (온디맨드 상세분석 전용) */
 var AI_KEY='##ANTHROPIC_KEY##';
 async function callClaude(sys,usr,maxTk){
-  var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':AI_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:maxTk||1000,system:sys,messages:[{role:'user',content:usr}]})});
+  var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':AI_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:maxTk||1000,system:sys,messages:[{role:'user',content:usr}]})});
   if(!r.ok)throw new Error('API '+r.status);
   var d=await r.json();return d.content.filter(function(x){return x.type==='text';}).map(function(x){return x.text;}).join('');
 }
@@ -229,6 +229,10 @@ const AI_SECTIONS={full:'',bias:'',forecast:'',picks:'',risk:''};
 const GLOBAL_ISSUES=[];
 const DOMESTIC_ISSUES=[];
 // ##ISSUES_DATA_E##
+
+// ##STOCK_ANALYSIS_S##
+const STOCK_ANALYSIS={};
+// ##STOCK_ANALYSIS_E##
 
 // ##STOCKS_S##
 const STOCKS=[
@@ -289,7 +293,7 @@ function renderGlNews(){
   document.getElementById('gnews-list').innerHTML=h;
 }
 
-/* ── 뉴스 클릭 → Haiku 상세 */
+/* ── 뉴스 클릭 → Sonnet 상세 */
 function showNews(type,idx){
   var items=type==='kr'?KR_NEWS:GL_NEWS;
   var pid=type==='kr'?'kn':'gn', did=type==='kr'?'knews-detail':'gnews-detail';
@@ -300,7 +304,7 @@ function showNews(type,idx){
   var meta='<div class="detail-meta"><span class="tag '+(n.tc||'tk')+'">'+(n.tag||'')+'</span><span>'+(n.time||'')+'</span><span>'+esc(n.src||'')+'</span></div>';
   document.getElementById(did).innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 요약 생성중...</div>';
   callClaude('뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.','뉴스: '+(n.title||n.titleKo)+'\n출처: '+(n.src||'N/A')+'\n태그: '+(n.tag||''),1000)
-  .then(function(t){document.getElementById(did).innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(n.link?'<a class="detail-link" href="'+n.link+'" target="_blank">📎 원문 →</a>':'')+'<div class="ai-ts">🤖 Haiku · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
+  .then(function(t){document.getElementById(did).innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(n.link?'<a class="detail-link" href="'+n.link+'" target="_blank">📎 원문 →</a>':'')+'<div class="ai-ts">🤖 Sonnet4 · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
   .catch(function(e){document.getElementById(did).innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body" style="color:var(--txt3)">AI 분석 실패: '+esc(e.message)+'</div>'+(n.link?'<a class="detail-link" href="'+n.link+'" target="_blank">📎 원문 →</a>':'');});
 }
 
@@ -320,7 +324,7 @@ function showDart(idx){
   var ttl=esc(d.title); var meta='<div class="detail-meta"><span class="dart-corp">'+esc(d.corp||'')+'</span><span>'+(d.date||'')+'</span><span class="dart-type">'+esc(d.type||'')+'</span></div>';
   document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 요약 생성중...</div>';
   callClaude('금융공시 전문가. 한국어. 투자자 관점 핵심 요약.','공시: '+esc(d.title)+'\n기업: '+(d.corp||'')+'\n유형: '+(d.type||''),800)
-  .then(function(t){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 DART →</a>':'')+'<div class="ai-ts">🤖 Haiku · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
+  .then(function(t){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 DART →</a>':'')+'<div class="ai-ts">🤖 Sonnet4 · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
   .catch(function(){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 DART →</a>':'');});
 }
 
@@ -332,7 +336,7 @@ function showResearch(idx){
   var ttl=esc(d.title); var meta='<div class="detail-meta"><span class="research-firm">'+esc(d.firm||'')+'</span><span>'+(d.date||'')+'</span><span>'+esc(d.stock||'')+'</span></div>';
   document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 요약 생성중...</div>';
   callClaude('증권사 리서치 전문가. 한국어. 투자포인트/목표가/리스크 요약.','리포트: '+esc(d.title)+'\n증권사: '+(d.firm||'')+'\n종목: '+(d.stock||''),800)
-  .then(function(t){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 리포트 →</a>':'')+'<div class="ai-ts">🤖 Haiku · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
+  .then(function(t){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 리포트 →</a>':'')+'<div class="ai-ts">🤖 Sonnet4 · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
   .catch(function(){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 리포트 →</a>':'');});
 }
 
@@ -385,9 +389,17 @@ function showStock(idx){
   document.querySelectorAll('.stbl tr').forEach(function(e){e.classList.remove('active');});
   var el=document.getElementById('stk-'+idx);if(el)el.classList.add('active');
   var s=STOCKS[idx];if(!s)return;
-  document.getElementById('stock-detail').innerHTML='<div class="detail-head">'+esc(s.name)+' <span class="sa '+s.ac+'">'+esc(s.act)+'</span></div><div class="detail-meta"><span class="sth '+s.tc+'">'+esc(s.th)+'</span><span>'+s.mkt+'</span></div><div class="ai-section"><h3>📋 의견</h3><div class="ai-body">'+esc(s.desc)+'</div></div><div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 상세분석중...</div>';
-  callClaude('한국주식 애널리스트. 한국어.','종목:'+s.name+'('+s.th+'/'+s.mkt+')\n의견:'+s.act+'\n기본:'+s.desc+'\n\n분석: 1.펀더멘털 2.기술적(지지/저항) 3.진입가3단계 4.목표가3단계 5.손절가 6.핵심리스크',1200)
-  .then(function(t){t=t.replace(/\*\*(.+?)\*\*/g,'<strong style="color:#fff">$1</strong>').replace(/^- /gm,'• ');document.getElementById('stock-detail').innerHTML='<div class="detail-head">'+esc(s.name)+' <span class="sa '+s.ac+'">'+esc(s.act)+'</span></div><div class="detail-meta"><span class="sth '+s.tc+'">'+esc(s.th)+'</span><span>'+s.mkt+'</span></div><div class="ai-body">'+t+'</div><div class="ai-ts">🤖 Haiku · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
+  var head='<div class="detail-head">'+esc(s.name)+' <span class="sa '+s.ac+'">'+esc(s.act)+'</span></div><div class="detail-meta"><span class="sth '+s.tc+'">'+esc(s.th)+'</span><span>'+s.mkt+'</span></div>';
+  // 캐시된 분석이 있으면 즉시 표시
+  if(STOCK_ANALYSIS[s.name]){
+    var a=STOCK_ANALYSIS[s.name];
+    document.getElementById('stock-detail').innerHTML=head+'<div class="ai-body">'+a.html+'</div><div class="ai-ts">🤖 Sonnet4 · '+a.ts+'</div>';
+    return;
+  }
+  // 캐시 없으면 Sonnet 실시간 호출
+  document.getElementById('stock-detail').innerHTML=head+'<div class="ai-section"><h3>📋 의견</h3><div class="ai-body">'+esc(s.desc)+'</div></div><div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 상세분석중...</div>';
+  callClaude('한국주식 애널리스트. 한국어.','종목:'+s.name+'('+s.th+'/'+s.mkt+')\n의견:'+s.act+'\n기본:'+s.desc+'\n\n분석: 1.펀더멘털 2.기술적(지지/저항) 3.진입가3단계 4.목표가3단계 5.손절가 6.핵심리스크',1500)
+  .then(function(t){t=t.replace(/\*\*(.+?)\*\*/g,'<strong style="color:#fff">$1</strong>').replace(/^- /gm,'• ');document.getElementById('stock-detail').innerHTML=head+'<div class="ai-body">'+t+'</div><div class="ai-ts">🤖 Sonnet4 · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
   .catch(function(){});
 }
 
