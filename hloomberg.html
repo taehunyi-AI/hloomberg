@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script>setTimeout(function(){location.reload();},300000);</script>
+<title>HLOOMBERG TERMINAL</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#080b0f;--bg1:#0d1117;--bg2:#111820;--bg3:#161e28;--bd:#1e2d3d;--bd2:#2d3f52;--txt:#e8ecf0;--txt2:#c9d1d9;--txt3:#a0aab4;--blue:#58a6ff;--green:#3fb950;--red:#f85149;--yel:#d29922;--ora:#db6d28;--cyn:#39c5cf;--mono:'IBM Plex Mono',monospace;--sans:'Noto Sans KR',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;height:-webkit-fill-available;overflow:hidden;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom)}
+#tb{display:flex;align-items:center;justify-content:space-between;padding:0 12px;height:36px;background:var(--bg1);border-bottom:1px solid var(--bd);flex-shrink:0}
+.tb-left{display:flex;align-items:center;gap:6px;flex:1}.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite;flex-shrink:0}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+#livtxt{font-size:11px;color:var(--txt);letter-spacing:1px}.tb-center{flex:2;text-align:center}
+.brand{font-size:13px;font-weight:700;letter-spacing:2.5px;color:var(--blue)}.tb-right{flex:1;text-align:right}
+#clk{font-size:13px;font-weight:700;color:#fff;letter-spacing:1px;font-variant-numeric:tabular-nums}#dts{font-size:10px;color:var(--txt2)}
+.refresh-ts{font-size:9px;color:var(--txt3);padding:3px 12px;border-bottom:1px solid var(--bd);background:var(--bg1);flex-shrink:0;letter-spacing:1px;text-align:center}
+#tkw{height:30px;display:flex;align-items:center;background:var(--bg1);border-bottom:1px solid var(--bd);overflow:hidden;flex-shrink:0}
+.tki{display:inline-flex;animation:sc 65s linear infinite;white-space:nowrap;pointer-events:none}
+#tkw:hover .tki{animation-play-state:paused}
+@keyframes sc{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.tc{display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-right:1px solid var(--bd);height:30px}
+.tl{font-size:9px;color:var(--txt3);letter-spacing:1px}.tv{font-size:13px;font-weight:600;color:#fff}.tc2{font-size:10px}
+.up{color:var(--green)}.dn{color:var(--red)}.neu{color:var(--txt2)}
+#isw{height:26px;display:flex;align-items:center;background:var(--bg);border-bottom:1px solid var(--bd);overflow:hidden;flex-shrink:0}
+.isi{display:inline-flex;animation:sc 80s linear infinite;white-space:nowrap;pointer-events:none}
+#isw:hover .isi{animation-play-state:paused}
+.isc{display:inline-flex;align-items:center;gap:6px;padding:0 16px;height:26px;font-size:11px;color:var(--cyn);font-family:var(--sans);border-right:1px solid var(--bd)}
+#tabs{display:flex;background:var(--bg1);border-bottom:2px solid var(--bd);flex-shrink:0;overflow-x:auto;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tb2{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:1px;color:var(--txt3);background:none;border:none;border-bottom:3px solid transparent;margin-bottom:-2px;padding:11px 14px;min-height:44px;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;-webkit-tap-highlight-color:rgba(88,166,255,0.15)}
+.tb2:hover{color:var(--txt)}.tb2.on{color:var(--blue);border-bottom-color:var(--blue)}
+.pn{display:none;flex:1;overflow:hidden}.pn.on{display:flex}
+.split{display:flex;flex:1;overflow:hidden}
+.split-left{width:40%;min-width:260px;border-right:1px solid var(--bd);overflow-y:auto;flex-shrink:0}
+.split-right{flex:1;overflow-y:auto;padding:14px}
+.li{padding:10px 12px;border-bottom:1px solid var(--bd);cursor:pointer;transition:background .15s}
+.li:hover{background:var(--bg2)}.li.active{background:var(--bg2);border-left:3px solid var(--blue)}
+.li-tag{display:inline-flex;align-items:center;gap:5px;margin-bottom:3px}
+.tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:.5px}
+.tw{background:#3d0c0c;color:var(--red)}.te{background:#0c1f3d;color:var(--blue)}.tm{background:#0c2d1a;color:var(--green)}
+.tg{background:#2d1f0c;color:var(--yel)}.tn{background:#2d180c;color:var(--ora)}.tk{background:#1a0c2d;color:var(--cyn)}
+.td{background:#1c1c0c;color:#e8c84a}.tr{background:#0c2d2d;color:var(--cyn)}
+.li-time{font-size:9px;color:var(--txt3)}.li-title{font-size:13px;font-weight:600;color:var(--txt);line-height:1.45;font-family:var(--sans);margin-top:2px}
+.detail-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--txt3);font-size:13px;text-align:center;padding:30px;line-height:1.8}
+.detail-head{font-size:16px;font-weight:700;color:#fff;line-height:1.5;font-family:var(--sans);margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--bd)}
+.detail-meta{font-size:10px;color:var(--txt3);margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.detail-body{font-size:14px;color:var(--txt);line-height:1.8;font-family:var(--sans);white-space:pre-wrap}
+.detail-link{display:inline-block;margin-top:12px;font-size:11px;color:var(--blue);text-decoration:underline}
+.ai-section{border:1px solid var(--bd);border-radius:6px;padding:12px;margin-bottom:10px;background:var(--bg1)}
+.ai-section h3{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:6px}
+.ai-body{font-size:13px;color:var(--txt);line-height:1.75;font-family:var(--sans);white-space:pre-wrap}
+.ai-rec{border-color:var(--green);background:#0a1c0e}.ai-rec h3{color:var(--green)}
+.ai-warn{border-color:var(--red);background:#1c0a0a}.ai-warn h3{color:var(--red)}
+.ai-neutral{border-color:var(--yel);background:#1c1608}.ai-neutral h3{color:var(--yel)}
+.ai-ts{font-size:9px;color:var(--txt3);text-align:right;margin-top:8px}
+.news-ts{font-size:9px;color:var(--txt3);padding:8px 12px}
+.sec-label{padding:6px 12px;font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid var(--bd);background:var(--bg3);flex-shrink:0}
+.stbl{width:100%;border-collapse:collapse;font-size:12px}
+.stbl th{background:var(--bg3);color:var(--txt3);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:8px 10px;text-align:left;position:sticky;top:0}
+.stbl td{padding:8px 10px;border-bottom:1px solid var(--bd);cursor:pointer}
+.stbl tr:hover td{background:var(--bg2)}.stbl tr.active td{background:var(--bg2);border-left:3px solid var(--blue)}
+.sa{font-size:10px;font-weight:700;letter-spacing:.5px;padding:2px 8px;border-radius:3px;white-space:nowrap;display:inline-block}
+.aby{background:#0c2d1a;color:var(--green)}.aho{background:#0c1f3d;color:var(--blue)}.awa{background:#2d1f0c;color:var(--yel)}.awn{background:#3d0c0c;color:var(--red)}
+.sth{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.5px;display:inline-block}
+.tsm{background:#0c1f3d;color:var(--blue)}.tdf{background:#0c2a1a;color:var(--green)}.ten{background:#2d180c;color:var(--ora)}.trv{background:#1a1a2d;color:var(--cyn)}.tlg{background:#1a2d20;color:#56d364}
+.rd{display:inline-flex;gap:3px;vertical-align:middle}.rdot{width:6px;height:6px;border-radius:50%}
+.subtab{display:flex;background:var(--bg3);border-bottom:1px solid var(--bd);flex-shrink:0}
+.subtab button{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--txt3);background:none;border:none;padding:7px 14px;min-height:36px;cursor:pointer;border-bottom:2px solid transparent;-webkit-tap-highlight-color:rgba(88,166,255,0.15)}
+.subtab button:hover{color:var(--txt)}.subtab button.on{color:var(--blue);border-bottom-color:var(--blue)}
+.dart-corp{font-weight:700;color:var(--yel)}.dart-type{color:var(--txt3)}
+.research-firm{font-weight:700;color:var(--cyn)}
+.cmdty-price{display:flex;gap:10px;align-items:center;padding:12px;border:1px solid var(--bd);border-radius:6px;background:var(--bg1);margin-bottom:12px}
+.cmdty-pv{font-size:24px;font-weight:700;color:#fff}
+</style>
+</head>
+<body>
+
+<div id="tb">
+  <div class="tb-left"><span class="dot" id="livdot"></span><span id="livtxt">LIVE</span></div>
+  <div class="tb-center"><div class="brand">HLOOMBERG TERMINAL</div></div>
+  <div class="tb-right"><span id="clk">--:--:--</span><br><span id="dts"></span></div>
+</div>
+<div class="refresh-ts"><!-- ##TS_S## -->LOADING...<!-- ##TS_E## --></div>
+<div id="tkw"><div class="tki" id="ti"><div class="tc"><span class="tl">LOADING</span><span class="tv">--</span></div></div></div>
+<div id="isw"><div class="isi" id="isi"><div class="isc">⟳ 이슈 분석 대기 중...</div></div></div>
+
+<div id="tabs">
+  <button class="tb2 on" data-pane="knews">국내뉴스</button>
+  <button class="tb2" data-pane="gnews">해외뉴스</button>
+  <button class="tb2" data-pane="dart">공시/리서치</button>
+  <button class="tb2" data-pane="ai">AI분석</button>
+  <button class="tb2" data-pane="issues">이슈분석</button>
+  <button class="tb2" data-pane="stocks">스윙종목</button>
+  <button class="tb2" data-pane="cmdty">원자재</button>
+</div>
+
+<!-- 국내뉴스 -->
+<div id="pane-knews" class="pn on">
+  <div class="split">
+    <div class="split-left" id="knews-list"><!-- ##KR_NEWS_S## --><div style="padding:30px;text-align:center;color:var(--txt3);font-size:12px">⟳ 수집 대기중...</div><!-- ##KR_NEWS_E## --></div>
+    <div class="split-right" id="knews-detail"><div class="detail-empty">← 뉴스를 클릭하면<br>AI 상세 분석 표시</div></div>
+  </div>
+</div>
+
+<!-- 해외뉴스 -->
+<div id="pane-gnews" class="pn">
+  <div class="split">
+    <div class="split-left" id="gnews-list"><!-- ##GL_NEWS_S## --><div style="padding:30px;text-align:center;color:var(--txt3);font-size:12px">⟳ 수집 대기중...</div><!-- ##GL_NEWS_E## --></div>
+    <div class="split-right" id="gnews-detail"><div class="detail-empty">← 뉴스를 클릭하면<br>AI 상세 분석 표시</div></div>
+  </div>
+</div>
+
+<!-- 공시/리서치 -->
+<div id="pane-dart" class="pn">
+  <div class="split">
+    <div class="split-left" style="display:flex;flex-direction:column;overflow:hidden">
+      <div class="subtab" id="dart-subtab">
+        <button class="on" onclick="switchDartTab('dart',this)">공시</button>
+        <button onclick="switchDartTab('research',this)">리서치</button>
+      </div>
+      <div id="dart-list" style="overflow-y:auto;flex:1"><!-- ##DART_S## --><div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">⟳ 수집 대기중...</div><!-- ##DART_E## --></div>
+      <div id="research-list" style="overflow-y:auto;flex:1;display:none"><!-- ##RESEARCH_S## --><div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">⟳ 수집 대기중...</div><!-- ##RESEARCH_E## --></div>
+    </div>
+    <div class="split-right" id="dart-detail"><div class="detail-empty">← 항목을 클릭하면 상세 표시</div></div>
+  </div>
+</div>
+
+<!-- AI분석 -->
+<div id="pane-ai" class="pn">
+  <div class="split">
+    <div class="split-left">
+      <div class="li active" onclick="showAIItem('overview',this)"><div class="li-title">📊 종합분석</div><div class="li-time" id="ai-ts-label"><!-- ##AI_TS_S## -->대기<!-- ##AI_TS_E## --></div></div>
+      <div class="li" onclick="showAIItem('bias',this)"><div class="li-title">🔍 뉴스편향/오류</div></div>
+      <div class="li" onclick="showAIItem('forecast',this)"><div class="li-title">📈 시장전망</div></div>
+      <div class="li" onclick="showAIItem('picks',this)"><div class="li-title">🎯 추천종목</div></div>
+      <div class="li" onclick="showAIItem('risk',this)"><div class="li-title">⚠ 리스크경고</div></div>
+    </div>
+    <div class="split-right" id="ai-detail"><!-- ##AI_S## --><div style="padding:20px;color:var(--txt3);font-size:12px">⟳ 분석 대기중...</div><!-- ##AI_E## --></div>
+  </div>
+</div>
+
+<!-- 이슈분석 -->
+<div id="pane-issues" class="pn">
+  <div class="split">
+    <div class="split-left" style="display:flex;flex-direction:column;overflow:hidden">
+      <div class="subtab" id="issues-subtab">
+        <button class="on" onclick="switchIssueTab('global',this)">글로벌 이슈</button>
+        <button onclick="switchIssueTab('domestic',this)">국내 이슈</button>
+      </div>
+      <div id="issues-global-list" style="overflow-y:auto;flex:1"><!-- ##ISSUES_GL_S## --><div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">⟳ 분석 대기중...</div><!-- ##ISSUES_GL_E## --></div>
+      <div id="issues-domestic-list" style="overflow-y:auto;flex:1;display:none"><!-- ##ISSUES_KR_S## --><div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">⟳ 분석 대기중...</div><!-- ##ISSUES_KR_E## --></div>
+    </div>
+    <div class="split-right" id="issues-detail"><div class="detail-empty">이슈를 클릭하면 상세 분석</div></div>
+  </div>
+</div>
+
+<!-- 스윙종목 -->
+<div id="pane-stocks" class="pn">
+  <div class="split">
+    <div class="split-left" id="stock-list" style="overflow-y:auto"></div>
+    <div class="split-right" id="stock-detail"><div class="detail-empty">← 종목을 클릭하면 AI 상세분석</div></div>
+  </div>
+</div>
+
+<!-- 원자재 -->
+<div id="pane-cmdty" class="pn">
+  <div class="split">
+    <div class="split-left" id="cmdty-list"></div>
+    <div class="split-right" id="cmdty-detail"><div class="detail-empty">← 항목 클릭</div></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── 시계 */
+var EDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function tick(){var n=new Date();document.getElementById('clk').textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(function(v){return String(v).padStart(2,'0');}).join(':');document.getElementById('dts').textContent=n.getFullYear()+'.'+String(n.getMonth()+1).padStart(2,'0')+'.'+String(n.getDate()).padStart(2,'0')+' ('+EDAYS[n.getDay()]+')';}
+setInterval(tick,1000);tick();
+
+/* ── 탭 전환 (touchend+click) */
+document.querySelectorAll('[data-pane]').forEach(function(b){
+  function go(){document.querySelectorAll('.pn').forEach(function(p){p.classList.remove('on');});document.querySelectorAll('.tb2').forEach(function(x){x.classList.remove('on');});document.getElementById('pane-'+b.dataset.pane).classList.add('on');b.classList.add('on');}
+  b.addEventListener('click',go);
+  b.addEventListener('touchend',function(e){e.preventDefault();go();});
+});
+
+/* ── Claude API (온디맨드 상세분석 전용) */
+var AI_KEY='##ANTHROPIC_KEY##';
+async function callClaude(sys,usr,maxTk){
+  var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':AI_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:maxTk||1000,system:sys,messages:[{role:'user',content:usr}]})});
+  if(!r.ok)throw new Error('API '+r.status);
+  var d=await r.json();return d.content.filter(function(x){return x.type==='text';}).map(function(x){return x.text;}).join('');
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ════════════════════════════════════════
+   SERVER-SIDE PATCHED DATA
+   ════════════════════════════════════════ */
+
+// ##TICKS_S##
+const TICKS=[];
+// ##TICKS_E##
+
+// ##KR_NEWS_DATA_S##
+const KR_NEWS=[];
+// ##KR_NEWS_DATA_E##
+
+// ##GL_NEWS_DATA_S##
+const GL_NEWS=[];
+// ##GL_NEWS_DATA_E##
+
+// ##DART_DATA_S##
+const DART_ITEMS=[];
+// ##DART_DATA_E##
+
+// ##RESEARCH_DATA_S##
+const RESEARCH_ITEMS=[];
+// ##RESEARCH_DATA_E##
+
+// ##AI_DATA_S##
+const AI_SECTIONS={full:'',bias:'',forecast:'',picks:'',risk:''};
+// ##AI_DATA_E##
+
+// ##ISSUES_DATA_S##
+const GLOBAL_ISSUES=[];
+const DOMESTIC_ISSUES=[];
+// ##ISSUES_DATA_E##
+
+// ##STOCKS_S##
+const STOCKS=[
+  {name:'삼성전자',mkt:'KOSPI',th:'반도체',tc:'tsm',act:'분할매수',ac:'aby',risk:2,desc:'이란전쟁 무관. 원화 하락 수출 수혜. 목표 227,000원.'},
+  {name:'SK하이닉스',mkt:'KOSPI',th:'반도체',tc:'tsm',act:'분할매수',ac:'aby',risk:2,desc:'AI 메모리 수요 견고.'},
+  {name:'삼성바이오',mkt:'KOSPI',th:'제약',tc:'tsm',act:'관심',ac:'awa',risk:2,desc:'지정학 무관 방어주.'},
+  {name:'한화에어로',mkt:'KOSPI',th:'방산',tc:'tdf',act:'보유',ac:'aho',risk:3,desc:'중동 수주 기대.'},
+  {name:'LIG넥스원',mkt:'KOSPI',th:'방산',tc:'tdf',act:'보유',ac:'aho',risk:3,desc:'천궁-II 수출.'},
+  {name:'한국전력',mkt:'KOSPI',th:'역발상',tc:'trv',act:'관심',ac:'awa',risk:3,desc:'유가 하락시 이중 수혜.'},
+  {name:'S-Oil',mkt:'KOSPI',th:'에너지',tc:'ten',act:'주의',ac:'awn',risk:5,desc:'⚠ WTI ▼-19% 재현 위험.'},
+  {name:'한국카본',mkt:'KOSDAQ',th:'LNG소재',tc:'tlg',act:'관심',ac:'awa',risk:3,desc:'LNG선 단열재 1위.'},
+  {name:'한국가스공사',mkt:'KOSPI',th:'에너지',tc:'ten',act:'관심',ac:'awa',risk:3,desc:'EIA 연말 $70시 원가 하락.'},
+];
+// ##STOCKS_E##
+
+// ##CMDTY_S##
+const CMDTY_DATA={
+  brent:{h:'Brent(ICE)',body:'개전전$69→최고$119. EIA연말~$70.',tick:'BRENT'},
+  wti:{h:'WTI(NYMEX)',body:'3/10 ▼-19%. Brent대비$3~5할인.',tick:'WTI'},
+  natgas:{h:'천연가스(HH)',body:'LNG 대체수요 급증. 관련:한국카본,가스공사.',tick:'NATGAS'},
+  uranium:{h:'우라늄(U3O8)',body:'원전르네상스+SMR. 관련:두산에너빌리티.'},
+  gold:{h:'금(COMEX)',body:'안전자산+중앙은행매입. $5000돌파.',tick:'GOLD'},
+  silver:{h:'은(COMEX)',body:'금대비저평가. 태양광수요.'},
+  copper:{h:'구리(COMEX)',body:'AI데이터센터+EV. 관련:LS,풍산.'},
+  nickel:{h:'니켈(LME)',body:'EV배터리핵심. 관련:고려아연.'},
+  lithium:{h:'리튬',body:'EV핵심. 장시성채굴취소. 관련:포스코퓨처엠.'},
+  eia:{h:'EIA유가전망',body:'Q2:>$95\nQ3:<$80\nQ4:~$70\n2027:~$64\n장기전(65%):$100+\n단기종결(35%):$70~80'},
+  soil:{h:'⚠S-OIL리스크',body:'WTI▼-19%전례. 정제마진역전. 단기트레이딩만.'},
+};
+// ##CMDTY_E##
+
+/* ════════════════════════════════════════
+   RENDER FUNCTIONS
+   ════════════════════════════════════════ */
+
+/* ── 시세 티커 */
+function renderTicker(){
+  if(!TICKS.length)return;
+  var h=TICKS.map(function(t){var arr=t.cl==='up'?'▲+':t.cl==='dn'?'▼':'';return'<div class="tc"><span class="tl">'+t.l+'</span><span class="tv">'+t.v+'</span><span class="tc2 '+(t.cl||'neu')+'">'+arr+t.c+'</span></div>';}).join('');
+  document.getElementById('ti').innerHTML=h+h;
+}
+
+/* ── 국내뉴스 */
+function renderKrNews(){
+  if(!KR_NEWS.length){document.getElementById('knews-list').innerHTML='<div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">뉴스 없음 (다음 갱신 대기)</div>';return;}
+  var h='';
+  KR_NEWS.forEach(function(n,i){h+='<div class="li" onclick="showNews(\'kr\','+i+')" id="kn-'+i+'"><div class="li-tag"><span class="tag '+(n.tc||'tk')+'">'+(n.tag||'한국')+'</span><span class="li-time">'+(n.time||'')+' · '+esc(n.src||'')+'</span></div><div class="li-title">'+esc(n.title)+'</div></div>';});
+  h+='<div class="news-ts">'+KR_NEWS.length+'건 · <!-- ##TS_SHORT_S## -->--<!-- ##TS_SHORT_E## --></div>';
+  document.getElementById('knews-list').innerHTML=h;
+}
+
+/* ── 해외뉴스 */
+function renderGlNews(){
+  if(!GL_NEWS.length){document.getElementById('gnews-list').innerHTML='<div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">뉴스 없음 (다음 갱신 대기)</div>';return;}
+  var h='';
+  GL_NEWS.forEach(function(n,i){h+='<div class="li" onclick="showNews(\'gl\','+i+')" id="gn-'+i+'"><div class="li-tag"><span class="tag '+(n.tc||'tm')+'">'+(n.tag||'글로벌')+'</span><span class="li-time">'+(n.time||'')+' · '+esc(n.src||'')+'</span></div><div class="li-title">'+esc(n.titleKo||n.title)+'</div></div>';});
+  h+='<div class="news-ts">'+GL_NEWS.length+'건 · <!-- ##TS_SHORT_S## -->--<!-- ##TS_SHORT_E## --></div>';
+  document.getElementById('gnews-list').innerHTML=h;
+}
+
+/* ── 뉴스 클릭 → Haiku 상세 */
+function showNews(type,idx){
+  var items=type==='kr'?KR_NEWS:GL_NEWS;
+  var pid=type==='kr'?'kn':'gn', did=type==='kr'?'knews-detail':'gnews-detail';
+  document.querySelectorAll('#'+(type==='kr'?'knews':'gnews')+'-list .li').forEach(function(e){e.classList.remove('active');});
+  var el=document.getElementById(pid+'-'+idx);if(el)el.classList.add('active');
+  var n=items[idx];if(!n)return;
+  var ttl=esc(n.titleKo||n.title);
+  var meta='<div class="detail-meta"><span class="tag '+(n.tc||'tk')+'">'+(n.tag||'')+'</span><span>'+(n.time||'')+'</span><span>'+esc(n.src||'')+'</span></div>';
+  document.getElementById(did).innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 요약 생성중...</div>';
+  callClaude('뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.','뉴스: '+(n.title||n.titleKo)+'\n출처: '+(n.src||'N/A')+'\n태그: '+(n.tag||''),1000)
+  .then(function(t){document.getElementById(did).innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(n.link?'<a class="detail-link" href="'+n.link+'" target="_blank">📎 원문 →</a>':'')+'<div class="ai-ts">🤖 Haiku · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
+  .catch(function(e){document.getElementById(did).innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body" style="color:var(--txt3)">AI 분석 실패: '+esc(e.message)+'</div>'+(n.link?'<a class="detail-link" href="'+n.link+'" target="_blank">📎 원문 →</a>':'');});
+}
+
+/* ── 공시/리서치 탭 */
+function switchDartTab(tab,el){
+  document.querySelectorAll('#dart-subtab button').forEach(function(b){b.classList.remove('on');});if(el)el.classList.add('on');
+  document.getElementById('dart-list').style.display=tab==='dart'?'':'none';
+  document.getElementById('research-list').style.display=tab==='research'?'':'none';
+  document.getElementById('dart-detail').innerHTML='<div class="detail-empty">← 항목을 클릭하면 상세 표시</div>';
+}
+
+/* ── 공시 클릭 */
+function showDart(idx){
+  document.querySelectorAll('#dart-list .li').forEach(function(e){e.classList.remove('active');});
+  var el=document.getElementById('dart-'+idx);if(el)el.classList.add('active');
+  var d=DART_ITEMS[idx];if(!d)return;
+  var ttl=esc(d.title); var meta='<div class="detail-meta"><span class="dart-corp">'+esc(d.corp||'')+'</span><span>'+(d.date||'')+'</span><span class="dart-type">'+esc(d.type||'')+'</span></div>';
+  document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 요약 생성중...</div>';
+  callClaude('금융공시 전문가. 한국어. 투자자 관점 핵심 요약.','공시: '+esc(d.title)+'\n기업: '+(d.corp||'')+'\n유형: '+(d.type||''),800)
+  .then(function(t){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 DART →</a>':'')+'<div class="ai-ts">🤖 Haiku · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
+  .catch(function(){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 DART →</a>':'');});
+}
+
+/* ── 리서치 클릭 */
+function showResearch(idx){
+  document.querySelectorAll('#research-list .li').forEach(function(e){e.classList.remove('active');});
+  var el=document.getElementById('res-'+idx);if(el)el.classList.add('active');
+  var d=RESEARCH_ITEMS[idx];if(!d)return;
+  var ttl=esc(d.title); var meta='<div class="detail-meta"><span class="research-firm">'+esc(d.firm||'')+'</span><span>'+(d.date||'')+'</span><span>'+esc(d.stock||'')+'</span></div>';
+  document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 요약 생성중...</div>';
+  callClaude('증권사 리서치 전문가. 한국어. 투자포인트/목표가/리스크 요약.','리포트: '+esc(d.title)+'\n증권사: '+(d.firm||'')+'\n종목: '+(d.stock||''),800)
+  .then(function(t){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+'<div class="detail-body">'+esc(t)+'</div>'+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 리포트 →</a>':'')+'<div class="ai-ts">🤖 Haiku · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
+  .catch(function(){document.getElementById('dart-detail').innerHTML='<div class="detail-head">'+ttl+'</div>'+meta+(d.link?'<a class="detail-link" href="'+d.link+'" target="_blank">📎 리포트 →</a>':'');});
+}
+
+/* ── AI분석 섹션 전환 */
+function showAIItem(k,el){
+  document.querySelectorAll('#pane-ai .split-left .li').forEach(function(e){e.classList.remove('active');});if(el)el.classList.add('active');
+  var c=k==='overview'?AI_SECTIONS.full:AI_SECTIONS[k];
+  document.getElementById('ai-detail').innerHTML=c?'<div class="ai-body" style="padding:4px">'+c+'</div>':'<div class="detail-empty">데이터 없음</div>';
+}
+
+/* ── 이슈 탭 */
+function switchIssueTab(tab,el){
+  document.querySelectorAll('#issues-subtab button').forEach(function(b){b.classList.remove('on');});if(el)el.classList.add('on');
+  document.getElementById('issues-global-list').style.display=tab==='global'?'':'none';
+  document.getElementById('issues-domestic-list').style.display=tab==='domestic'?'':'none';
+}
+
+/* ── 이슈 클릭 */
+function showIssue(type,idx){
+  var items=type==='gl'?GLOBAL_ISSUES:DOMESTIC_ISSUES;
+  document.querySelectorAll('#issues-global-list .li, #issues-domestic-list .li').forEach(function(e){e.classList.remove('active');});
+  var el=document.getElementById(type+'-iss-'+idx);if(el)el.classList.add('active');
+  var d=items[idx];if(!d)return;
+  document.getElementById('issues-detail').innerHTML=
+    '<div class="detail-head">'+(idx+1)+'. '+esc(d.title)+'</div>'
+    +'<div class="detail-meta"><span>임팩트: '+(d.impact||'-')+'</span></div>'
+    +'<div class="ai-section"><h3>📋 요약</h3><div class="ai-body">'+esc(d.summary||'')+'</div></div>'
+    +'<div class="ai-section ai-rec"><h3>📈 시나리오A (낙관)</h3><div class="ai-body">'+esc(d.scenarioA||'')+'</div></div>'
+    +'<div class="ai-section ai-warn"><h3>📉 시나리오B (비관)</h3><div class="ai-body">'+esc(d.scenarioB||'')+'</div></div>'
+    +'<div class="ai-section"><h3>🔑 KEY DRIVERS</h3><div class="ai-body">'+(d.drivers||[]).map(function(x){return'• '+esc(x);}).join('\n')+'</div></div>'
+    +'<div class="ai-section ai-neutral"><h3>💡 투자시사점</h3><div class="ai-body">'+esc(d.action||'')+'</div></div>';
+}
+
+/* ── 스윙종목 */
+function renderStockList(){
+  var kospi=STOCKS.filter(function(s){return s.mkt==='KOSPI';});
+  var kosdaq=STOCKS.filter(function(s){return s.mkt==='KOSDAQ';});
+  document.getElementById('stock-list').innerHTML='<div class="sec-label">KOSPI</div>'+buildStockTable(kospi)+'<div class="sec-label">KOSDAQ</div>'+buildStockTable(kosdaq);
+}
+function buildStockTable(items){
+  var h='<table class="stbl"><thead><tr><th>종목</th><th>섹터</th><th>의견</th><th>위험</th></tr></thead><tbody>';
+  items.forEach(function(s){
+    var idx=STOCKS.indexOf(s);
+    var dots='<span class="rd">';for(var j=1;j<=5;j++){var c=j<=s.risk?(s.risk>=4?'var(--red)':s.risk>=3?'var(--yel)':'var(--green)'):'var(--bd2)';dots+='<span class="rdot" style="background:'+c+'"></span>';}dots+='</span>';
+    h+='<tr id="stk-'+idx+'" onclick="showStock('+idx+')"><td style="font-weight:700;color:#fff">'+esc(s.name)+'</td><td><span class="sth '+s.tc+'">'+esc(s.th)+'</span></td><td><span class="sa '+s.ac+'">'+esc(s.act)+'</span></td><td>'+dots+'</td></tr>';
+  });
+  return h+'</tbody></table>';
+}
+function showStock(idx){
+  document.querySelectorAll('.stbl tr').forEach(function(e){e.classList.remove('active');});
+  var el=document.getElementById('stk-'+idx);if(el)el.classList.add('active');
+  var s=STOCKS[idx];if(!s)return;
+  document.getElementById('stock-detail').innerHTML='<div class="detail-head">'+esc(s.name)+' <span class="sa '+s.ac+'">'+esc(s.act)+'</span></div><div class="detail-meta"><span class="sth '+s.tc+'">'+esc(s.th)+'</span><span>'+s.mkt+'</span></div><div class="ai-section"><h3>📋 의견</h3><div class="ai-body">'+esc(s.desc)+'</div></div><div style="text-align:center;padding:20px;color:var(--txt3);font-size:12px">⟳ AI 상세분석중...</div>';
+  callClaude('한국주식 애널리스트. 한국어.','종목:'+s.name+'('+s.th+'/'+s.mkt+')\n의견:'+s.act+'\n기본:'+s.desc+'\n\n분석: 1.펀더멘털 2.기술적(지지/저항) 3.진입가3단계 4.목표가3단계 5.손절가 6.핵심리스크',1200)
+  .then(function(t){t=t.replace(/\*\*(.+?)\*\*/g,'<strong style="color:#fff">$1</strong>').replace(/^- /gm,'• ');document.getElementById('stock-detail').innerHTML='<div class="detail-head">'+esc(s.name)+' <span class="sa '+s.ac+'">'+esc(s.act)+'</span></div><div class="detail-meta"><span class="sth '+s.tc+'">'+esc(s.th)+'</span><span>'+s.mkt+'</span></div><div class="ai-body">'+t+'</div><div class="ai-ts">🤖 Haiku · '+new Date().toLocaleTimeString('ko-KR')+'</div>';})
+  .catch(function(){});
+}
+
+/* ── 원자재 */
+var CMDTY_ITEMS=[
+  {title:'🛢 Brent',key:'brent',cat:'에너지'},{title:'🛢 WTI',key:'wti',cat:'에너지'},
+  {title:'🔥 천연가스',key:'natgas',cat:'에너지'},{title:'⚡ 우라늄',key:'uranium',cat:'에너지'},
+  {title:'🥇 금',key:'gold',cat:'귀금속'},{title:'🥈 은',key:'silver',cat:'귀금속'},
+  {title:'🔶 구리',key:'copper',cat:'산업금속'},{title:'🔷 니켈',key:'nickel',cat:'산업금속'},
+  {title:'🔋 리튬',key:'lithium',cat:'산업금속'},{title:'📊 EIA전망',key:'eia',cat:'전망'},{title:'⚠ S-OIL',key:'soil',cat:'전망'},
+];
+function renderCmdty(){
+  var h='',lc='';CMDTY_ITEMS.forEach(function(item){if(item.cat!==lc){lc=item.cat;h+='<div class="sec-label">'+item.cat+'</div>';}h+='<div class="li" onclick="showCmdty(\''+item.key+'\')" id="cm-'+item.key+'"><div class="li-title">'+item.title+'</div></div>';});
+  document.getElementById('cmdty-list').innerHTML=h;
+}
+function showCmdty(k){
+  document.querySelectorAll('#cmdty-list .li').forEach(function(e){e.classList.remove('active');});var el=document.getElementById('cm-'+k);if(el)el.classList.add('active');
+  var d=CMDTY_DATA[k];if(!d)return;
+  var ex='';
+  if(d.tick){var td=TICKS.find(function(t){return t.k===d.tick;});if(td){var arr=td.cl==='up'?'▲+':td.cl==='dn'?'▼':'';ex='<div class="cmdty-price"><div class="cmdty-pv">'+td.v+'</div><div style="font-size:14px;font-weight:600;color:'+(td.cl==='up'?'var(--green)':td.cl==='dn'?'var(--red)':'var(--txt2)')+'">'+arr+td.c+'</div></div>';}}
+  document.getElementById('cmdty-detail').innerHTML='<div class="detail-head">'+d.h+'</div>'+ex+'<div class="detail-body">'+d.body+'</div>';
+}
+
+/* ── 이슈 티커 */
+function renderIssueTicker(){
+  var all=GLOBAL_ISSUES.concat(DOMESTIC_ISSUES);if(!all.length)return;
+  var h=all.map(function(d,i){return'<div class="isc">'+(i<GLOBAL_ISSUES.length?'🌍':'🇰🇷')+' '+(i+1)+'. '+esc(d.title)+' ['+d.impact+']</div>';}).join('');
+  document.getElementById('isi').innerHTML=h+h;
+}
+
+/* ── 공시 리스트 렌더 (server HTML 패치로 이미 렌더됨, JS 데이터 백업용) */
+function renderDartList(){
+  if(!DART_ITEMS.length)return;
+  var h='';DART_ITEMS.forEach(function(d,i){h+='<div class="li" onclick="showDart('+i+')" id="dart-'+i+'"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">'+(d.date||'')+'</span></div><div class="li-title" style="margin-top:2px"><span class="dart-corp">'+esc(d.corp||'')+'</span> '+esc(d.title)+'</div></div>';});
+  document.getElementById('dart-list').innerHTML=h;
+}
+function renderResearchList(){
+  if(!RESEARCH_ITEMS.length)return;
+  var h='';RESEARCH_ITEMS.forEach(function(d,i){h+='<div class="li" onclick="showResearch('+i+')" id="res-'+i+'"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">'+(d.date||'')+' · '+esc(d.firm||'')+'</span></div><div class="li-title" style="margin-top:2px">'+esc(d.title)+'</div></div>';});
+  document.getElementById('research-list').innerHTML=h;
+}
+function renderIssueList(items,elId,type){
+  if(!items.length)return;
+  var icons=['🔴','🟠','🟡','🟢','🔵','🟣','⚪','⚫','🔶','🔷'];
+  var h='';items.forEach(function(d,i){h+='<div class="li" onclick="showIssue(\''+type+'\','+i+')" id="'+type+'-iss-'+i+'"><div class="li-tag"><span>'+icons[i%10]+'</span><span class="li-time">임팩트: '+(d.impact||'-')+'</span></div><div class="li-title">'+(i+1)+'. '+esc(d.title)+'</div></div>';});
+  document.getElementById(elId).innerHTML=h;
+}
+
+/* ── 초기화 */
+function init(){
+  renderTicker();
+  renderKrNews();
+  renderGlNews();
+  renderDartList();
+  renderResearchList();
+  renderIssueList(GLOBAL_ISSUES,'issues-global-list','gl');
+  renderIssueList(DOMESTIC_ISSUES,'issues-domestic-list','kr');
+  renderIssueTicker();
+  renderStockList();
+  renderCmdty();
+  if(AI_SECTIONS.full)document.getElementById('ai-detail').innerHTML='<div class="ai-body" style="padding:4px">'+AI_SECTIONS.full+'</div>';
+  document.getElementById('livdot').className='dot';
+  document.getElementById('livtxt').textContent=TICKS.length?'LIVE':'STATIC';
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+</script>
+</body>
+</html>
