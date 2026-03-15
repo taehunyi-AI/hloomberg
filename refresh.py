@@ -178,20 +178,22 @@ def make_ticks_js():
 # 2. 뉴스 수집
 # ─────────────────────────────────────────
 KR_RSS = [
-    ('https://www.hankyung.com/feed/economy',    '한국경제', 'tk'),
-    ('https://www.hankyung.com/feed/finance',    '한경증권', 'tk'),
-    ('https://www.mk.co.kr/rss/30100041/',       '매일경제', 'tk'),
-    ('https://www.mk.co.kr/rss/30200030/',       '매경증권', 'tk'),
-    ('https://rss.donga.com/economy.xml',        '동아경제', 'tk'),
-    ('https://www.asiae.co.kr/rss/stock.htm',    '아시아경제','tk'),
-    ('https://rss.etnews.com/Section902.xml',    '전자신문', 'te'),
-    ('https://www.sedaily.com/RSS/Economy',      '서울경제', 'tk'),
-    ('https://www.etoday.co.kr/rss/sf.xml',      '이투데이', 'tk'),
-    ('https://rss.mt.co.kr/mt_stock.xml',        '머니투데이','tk'),
-    ('https://www.fnnews.com/rss/fn_economy.xml','파이낸셜뉴스','tk'),
-    ('https://biz.heraldcoral.com/rss',          '헤럴드경제','tk'),
-    ('https://www.newspim.com/rss/economy.xml',  '뉴스핌',   'tk'),
-    ('https://www.yna.co.kr/rss/economy.xml',    '연합뉴스', 'tk'),
+    ('https://www.hankyung.com/feed/economy',          '한국경제',   'tk'),
+    ('https://www.hankyung.com/feed/finance',          '한경증권',   'tk'),
+    ('https://www.mk.co.kr/rss/30100041/',             '매일경제',   'tk'),
+    ('https://www.mk.co.kr/rss/30200030/',             '매경증권',   'tk'),
+    ('https://rss.donga.com/economy.xml',              '동아경제',   'tk'),
+    ('https://www.asiae.co.kr/rss/stock.htm',          '아시아경제', 'tk'),
+    ('https://rss.etnews.com/Section902.xml',          '전자신문',   'te'),
+    ('https://www.sedaily.com/RSS/Economy',            '서울경제',   'tk'),
+    ('https://www.etoday.co.kr/rss/et.xml',            '이투데이',   'tk'),  # sf.xml → et.xml
+    ('https://rss.mt.co.kr/mt_news1.xml',              '머니투데이', 'tk'),  # mt_stock → mt_news1
+    ('https://www.fnnews.com/rss/fn_stock.xml',        '파이낸셜뉴스','tk'), # fn_economy → fn_stock
+    ('https://biz.heraldcorp.com/rss',                 '헤럴드경제', 'tk'),  # heraldcoral → heraldcorp
+    ('https://www.newspim.com/rss/finance.xml',        '뉴스핌',     'tk'),  # economy → finance
+    ('https://www.yna.co.kr/rss/economy.xml',          '연합뉴스',   'tk'),
+    ('https://www.chosun.com/arc/outboundfeeds/rss/category/economy/', '조선경제', 'tk'),
+    ('https://n.news.naver.com/rss/news.nhn?oid=015',  '한경',       'tk'),
 ]
 KR_GNEWS = [
     ('한국 증시 KOSPI 코스피', 'tk'),
@@ -206,16 +208,17 @@ GL_RSS = [
     ('https://feeds.bbci.co.uk/news/business/rss.xml',                                      'BBC',        '유럽',   'te'),
     ('https://feeds.a.dj.com/rss/RSSMarketsMain.xml',                                       'WSJ',        '유럽',   'te'),
     ('https://feeds.bloomberg.com/markets/news.rss',                                        'Bloomberg',  '유럽',   'te'),
-    ('https://www.reuters.com/rssFeed/businessNews',                                        'Reuters',    '글로벌', 'tm'),
+    ('https://feeds.reuters.com/reuters/businessNews',                                      'Reuters',    '글로벌', 'tm'),  # rssFeed → feeds
     ('https://www.aljazeera.com/xml/rss/all.xml',                                           'Al Jazeera', '중동',   'tw'),
     ('https://www.middleeasteye.net/rss',                                                   'ME Eye',     '중동',   'tw'),
     ('https://www.timesofisrael.com/feed/',                                                 'ToI',        '중동',   'tw'),
-    ('https://english.alarabiya.net/rss.xml',                                               'Al Arabiya', '중동',   'tw'),
-    ('https://asia.nikkei.com/rss',                                                         'Nikkei',     '아시아', 'tg'),
+    ('https://www.jpost.com/Rss/RssFeedsHeadlines.aspx',                                    'J.Post',     '중동',   'tw'),  # alarabiya 대체
+    ('https://asia.nikkei.com/rss/feed/nar',                                                'Nikkei',     '아시아', 'tg'),  # /rss → /rss/feed/nar
     ('https://www.scmp.com/rss/91/feed',                                                    'SCMP',       '아시아', 'tg'),
     ('https://economictimes.indiatimes.com/rssfeedstopstories.cms',                         'ET India',   '아시아', 'tg'),
     ('https://seekingalpha.com/market_currents.xml',                                        'SA',         '미국',   'tm'),
     ('https://www.benzinga.com/feed',                                                       'Benzinga',   '미국',   'tm'),
+    ('https://rss.app/feeds/financial-times.xml',                                           'FT',         '유럽',   'te'),
 ]
 GL_GNEWS = [
     ('Iran war oil Middle East Hormuz', '중동', 'tw'),
@@ -281,7 +284,7 @@ def fetch_daum_news():
     """다음 금융 뉴스 API"""
     out = []
     apis = [
-        ('https://finance.daum.net/api/news/market?perPage=10&page=1&type=K', '다음금융'),
+        ('https://finance.daum.net/api/news/topics?perPage=10&page=1', '다음금융'),
     ]
     for url, src in apis:
         r = safe_get(url, headers={'Referer':'https://finance.daum.net','Origin':'https://finance.daum.net'})
@@ -488,6 +491,20 @@ ai_ts = ''
 global_issues = []
 domestic_issues = []
 
+def parse_issues_json(text):
+    clean = re.sub(r'^```(?:json)?', '', text).rstrip('`').strip()
+    s1, s2 = clean.find('['), clean.rfind(']')
+    if s1 >= 0 and s2 > s1: clean = clean[s1:s2+1]
+    try: return json.loads(clean)
+    except:
+        # 마지막 완전한 객체까지 복구
+        lc = clean.rfind('},')
+        if lc > 0:
+            try: return json.loads(clean[:lc+1]+']')
+            except: pass
+        return []
+
+
 def call_claude(model, system, user, max_tokens=3000):
     if not ANTHROPIC_KEY:
         raise Exception('No ANTHROPIC_API_KEY')
@@ -576,19 +593,6 @@ if ANTHROPIC_KEY:
 
 else:
     print('  ANTHROPIC_API_KEY 없음 — AI 분석 스킵')
-
-def parse_issues_json(text):
-    clean = re.sub(r'^```(?:json)?', '', text).rstrip('`').strip()
-    s1, s2 = clean.find('['), clean.rfind(']')
-    if s1 >= 0 and s2 > s1: clean = clean[s1:s2+1]
-    try: return json.loads(clean)
-    except:
-        # 마지막 완전한 객체까지 복구
-        lc = clean.rfind('},')
-        if lc > 0:
-            try: return json.loads(clean[:lc+1]+']')
-            except: pass
-        return []
 
 # ─────────────────────────────────────────
 # 6. HTML 패치
