@@ -38,9 +38,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
 .split-top{height:40%;min-height:180px;border-bottom:1px solid var(--bd);overflow-y:auto;flex-shrink:0}
 .split-bottom{flex:1;overflow-y:auto;padding:14px}
 /* 기존 split-left/right 호환 유지 */
-.split-left{height:42%;min-height:160px;border-bottom:2px solid var(--bd);overflow-x:auto;overflow-y:hidden;flex-shrink:0;width:100%;white-space:nowrap;scrollbar-width:thin;scrollbar-color:var(--bd2) var(--bg1)}
-.split-left::-webkit-scrollbar{height:4px}.split-left::-webkit-scrollbar-track{background:var(--bg1)}.split-left::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
-.split-right{flex:1;overflow-y:auto;padding:14px;width:100%}
+.split-left{width:40%;min-width:260px;border-right:1px solid var(--bd);overflow-y:auto;flex-shrink:0}
+.split-right{flex:1;overflow-y:auto;padding:14px}
 .li{display:inline-flex;flex-direction:column;padding:8px 12px;border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);cursor:pointer;transition:background .15s;vertical-align:top;min-width:200px;max-width:280px}
 .li:hover{background:var(--bg2)}.li.active{background:var(--bg2);border-top:3px solid var(--blue);padding-top:5px}
 .li-tag{display:inline-flex;align-items:center;gap:5px;margin-bottom:3px}
@@ -88,7 +87,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
   <div class="tb-center"><div class="brand">HLOOMBERG TERMINAL</div></div>
   <div class="tb-right"><span id="clk">--:--:--</span><br><span id="dts"></span></div>
 </div>
-<div class="refresh-ts"><!-- ##TS_S## -->🔄 2026-03-15 17:32 KST · 10국내 · 10해외 · 10공시<!-- ##TS_E## --></div>
+<div class="refresh-ts"><!-- ##TS_S## -->LOADING...<!-- ##TS_E## --></div>
 <div id="tkw"><div class="tki" id="ti"><div class="tc"><span class="tl">LOADING</span><span class="tv">--</span></div></div></div>
 <div id="isw"><div class="isi" id="isi"><div class="isc">⟳ 이슈 분석 대기 중...</div></div></div>
 
@@ -107,9 +106,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
 <!-- 국내뉴스 -->
 <div id="pane-knews" class="pn on">
   <div class="split">
-    <div class="split-left" id="knews-list"><!-- ##KR_NEWS_S## -->
-<div class="li" onclick="showNews('kr',0)" id="krn-0"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">31분전 · 매일경제</span></div><div class="li-title">가스공사, 日 최대 LNG 기업과 수급 협약 체결…“에너지 안보 협력”</div></div><div class="li" onclick="showNews('kr',1)" id="krn-1"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">3시간전 · 매일경제</span></div><div class="li-title">농협 특성 살린 포용금융…농협금융, 1726개 마을기업 돕기 나선다</div></div><div class="li" onclick="showNews('kr',2)" id="krn-2"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">2시간전 · 매일경제</span></div><div class="li-title">석유 최고가격제 사흘째…전국 평균 휘발유 1842원, 전날보다 3원↓</div></div><div class="li" onclick="showNews('kr',3)" id="krn-3"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">3시간전 · 매경증권</span></div><div class="li-title">김정은 “420㎞ 사정권내 적들에 불안”…신형방사포 12발 무력시위</div></div><div class="li" onclick="showNews('kr',4)" id="krn-4"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">방금 · 네이버금융(주식)</span></div><div class="li-title">&quot;지금이 바닥이다&quot;…삼성전자 집중 매수</div></div><div class="li" onclick="showNews('kr',5)" id="krn-5"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">방금 · 네이버금융(투자)</span></div><div class="li-title">[단독] 삼성전자, 휴대폰 사업까지 &#x27;비상경영&#x27; 가동...DX 전 영역으로 확대</div></div><div class="li" onclick="showNews('kr',6)" id="krn-6"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">8시간전 · 매경증권</span></div><div class="li-title">방사포 훈련 참관 김정은 “420㎞ 사정권내 적들에 불안 줄 것”…딸 주애 동행</div></div><div class="li" onclick="showNews('kr',7)" id="krn-7"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">11분전 · 한경증권</span></div><div class="li-title">&#x27;천정부지&#x27; 유가에 원유·원전 ETF 날았다</div></div><div class="li" onclick="showNews('kr',8)" id="krn-8"><div class="li-tag"><span class="tag tk">한국</span><span class="li-time">32분전 · 서울경제</span></div><div class="li-title">韓 “美 알래스카 LNG 수출 환영”</div></div><div class="li" onclick="showNews('kr',9)" id="krn-9"><div class="li-tag"><span class="tag te">한국</span><span class="li-time">32분전 · 전자신문</span></div><div class="li-title">[전화성의 기술창업 Targeting] 〈388〉 [AC협회장 주간록98] 13.3조원 첨단전략산업 금융지원, 기술패권 시대 새로운 기회</div></div><div class="news-ts">10건 · 03/15 17:32</div>
-<!-- ##KR_NEWS_E## --></div>
+    <div class="split-left" id="knews-list"><!-- ##KR_NEWS_S## --><div style="padding:30px;text-align:center;color:var(--txt3);font-size:12px">⟳ 수집 대기중...</div><!-- ##KR_NEWS_E## --></div>
     <div class="split-right" id="knews-detail"><div class="detail-empty">← 뉴스 클릭 시 AI 상세분석 표시됨</div></div>
   </div>
 </div>
@@ -117,9 +114,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
 <!-- 해외뉴스 -->
 <div id="pane-gnews" class="pn">
   <div class="split">
-    <div class="split-left" id="gnews-list"><!-- ##GL_NEWS_S## -->
-<div class="li" onclick="showNews('gl',0)" id="gln-0"><div class="li-tag"><span class="tag tg">아시아</span><span class="li-time">20분전 · ET India</span></div><div class="li-title">Iraq warns of strikes near Syria detainees&#x27; prison</div></div><div class="li" onclick="showNews('gl',1)" id="gln-1"><div class="li-tag"><span class="tag tg">아시아</span><span class="li-time">32분전 · SCMP</span></div><div class="li-title">Top of the world: why Indonesian workers are happiest in Asia-Pacific</div></div><div class="li" onclick="showNews('gl',2)" id="gln-2"><div class="li-tag"><span class="tag tg">아시아</span><span class="li-time">34분전 · ET India</span></div><div class="li-title">Oil crisis to send shockwaves across Asia</div></div><div class="li" onclick="showNews('gl',3)" id="gln-3"><div class="li-tag"><span class="tag tw">중동</span><span class="li-time">38분전 · Al Jazeera</span></div><div class="li-title">Minab: When the world’s most precise missile chose a classroom</div></div><div class="li" onclick="showNews('gl',4)" id="gln-4"><div class="li-tag"><span class="tag tw">중동</span><span class="li-time">45분전 · ME Eye</span></div><div class="li-title">Iran launches ten hypersonic missiles in latest wave of attacks</div></div><div class="li" onclick="showNews('gl',5)" id="gln-5"><div class="li-tag"><span class="tag tg">아시아</span><span class="li-time">50분전 · ET India</span></div><div class="li-title">Netanyahu&#x27;s office debunks assassination rumours</div></div><div class="li" onclick="showNews('gl',6)" id="gln-6"><div class="li-tag"><span class="tag tw">중동</span><span class="li-time">51분전 · Al Jazeera</span></div><div class="li-title">Smoke rises over Beirut’s southern suburbs</div></div><div class="li" onclick="showNews('gl',7)" id="gln-7"><div class="li-tag"><span class="tag tw">중동</span><span class="li-time">53분전 · ME Eye</span></div><div class="li-title">Israel’s health ministry says 108 injured in last 24 hours</div></div><div class="li" onclick="showNews('gl',8)" id="gln-8"><div class="li-tag"><span class="tag tw">중동</span><span class="li-time">54분전 · Al Jazeera</span></div><div class="li-title">Republic of Congo votes in election that could extend Sassou’s 42-year rule</div></div><div class="li" onclick="showNews('gl',9)" id="gln-9"><div class="li-tag"><span class="tag tw">중동</span><span class="li-time">1시간전 · ToI</span></div><div class="li-title">US military names 6 crew members killed on refueling plane that crashed in Iraq</div></div><div class="news-ts">10건 · 03/15 17:32</div>
-<!-- ##GL_NEWS_E## --></div>
+    <div class="split-left" id="gnews-list"><!-- ##GL_NEWS_S## --><div style="padding:30px;text-align:center;color:var(--txt3);font-size:12px">⟳ 수집 대기중...</div><!-- ##GL_NEWS_E## --></div>
     <div class="split-right" id="gnews-detail"><div class="detail-empty">← 뉴스 클릭 시 AI 상세분석 표시됨</div></div>
   </div>
 </div>
@@ -132,12 +127,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
         <button class="on" onclick="switchDartTab('dart',this)">공시</button>
         <button onclick="switchDartTab('research',this)">리서치</button>
       </div>
-      <div id="dart-list" style="overflow-x:auto;overflow-y:hidden;flex:1;white-space:nowrap"><!-- ##DART_S## -->
-<div class="li" onclick="showDart(0)" id="dart-0"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">에코프로</span> 감사보고서제출(자회사의 주요경영사항)              </div></div><div class="li" onclick="showDart(1)" id="dart-1"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">엔켐</span> [기재정정]타인에대한채무보증결정              </div></div><div class="li" onclick="showDart(2)" id="dart-2"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">에코글로우</span> 감사보고서제출              </div></div><div class="li" onclick="showDart(3)" id="dart-3"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">DH오토리드</span> [기재정정]주주총회소집결의              </div></div><div class="li" onclick="showDart(4)" id="dart-4"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">DH오토리드</span> 타인에대한채무보증결정              </div></div><div class="li" onclick="showDart(5)" id="dart-5"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">계양전기</span> 감사보고서제출              </div></div><div class="li" onclick="showDart(6)" id="dart-6"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">엠디바이스</span> 감사보고서제출              </div></div><div class="li" onclick="showDart(7)" id="dart-7"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">슈피겐코리아</span> 주주총회집중일개최사유신고              </div></div><div class="li" onclick="showDart(8)" id="dart-8"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">DH오토리드</span> 현금ㆍ현물배당결정              </div></div><div class="li" onclick="showDart(9)" id="dart-9"><div class="li-tag"><span class="tag td">공시</span><span class="li-time">20260313</span></div><div class="li-title"><span class="dart-corp">엠게임</span> 감사보고서제출              </div></div>
-<!-- ##DART_E## --></div>
-      <div id="research-list" style="overflow-x:auto;overflow-y:hidden;flex:1;white-space:nowrap;display:none"><!-- ##RESEARCH_S## -->
-<div class="li" onclick="showResearch(0)" id="res-0"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">5639 · <span class="research-firm">유안타증권</span></span></div><div class="li-title">실적과 모멘텀 모두 매력적이다!</div></div><div class="li" onclick="showResearch(1)" id="res-1"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">3701 · <span class="research-firm">유안타증권</span></span></div><div class="li-title">올해도 N수생 多</div></div><div class="li" onclick="showResearch(2)" id="res-2"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">5873 · <span class="research-firm">하나증권</span></span></div><div class="li-title">광모듈 수요가 끝이 없다</div></div><div class="li" onclick="showResearch(3)" id="res-3"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">5747 · <span class="research-firm">하나증권</span></span></div><div class="li-title">이번엔 기대가 되는 4월입니다</div></div><div class="li" onclick="showResearch(4)" id="res-4"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">11919 · <span class="research-firm">하나증권</span></span></div><div class="li-title">실적 상향과 밸류업 기대감</div></div><div class="li" onclick="showResearch(5)" id="res-5"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">3979 · <span class="research-firm">하나증권</span></span></div><div class="li-title">자기주식 7.0% 보유 중</div></div><div class="li" onclick="showResearch(6)" id="res-6"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">3510 · <span class="research-firm">하나증권</span></span></div><div class="li-title">[탐방노트] 연간 가이던스 달성 가능성 충분</div></div><div class="li" onclick="showResearch(7)" id="res-7"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">3792 · <span class="research-firm">한국투자증권</span></span></div><div class="li-title">엔비디아 GPU 26만 장의 직접적인 수혜주</div></div><div class="li" onclick="showResearch(8)" id="res-8"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">2783 · <span class="research-firm">한국투자증권</span></span></div><div class="li-title">콥데이 후기: 다가오는 기대 신작들</div></div><div class="li" onclick="showResearch(9)" id="res-9"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">3529 · <span class="research-firm">유진투자증권</span></span></div><div class="li-title">사업다변화에 성공, 역대 최대 매출 달성 지..</div></div><div class="li" onclick="showResearch(10)" id="res-10"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">3573 · <span class="research-firm">SK증권</span></span></div><div class="li-title">단순 테마 아닌 구조적 성장 가능성을 확인하..</div></div><div class="li" onclick="showResearch(11)" id="res-11"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">3697 · <span class="research-firm">한국IR협의회</span></span></div><div class="li-title">고부가제품 확대 기대</div></div><div class="li" onclick="showResearch(12)" id="res-12"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">5427 · <span class="research-firm">DS투자증권</span></span></div><div class="li-title">해외 마케팅과 지역 확대로 글로벌 존재감 확..</div></div><div class="li" onclick="showResearch(13)" id="res-13"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">4633 · <span class="research-firm">교보증권</span></span></div><div class="li-title">해외 성장이 아쉬워</div></div><div class="li" onclick="showResearch(14)" id="res-14"><div class="li-tag"><span class="tag tr">리서치</span><span class="li-time">8980 · <span class="research-firm">하나증권</span></span></div><div class="li-title">최소한 시총 1조원은 되어야 정상입니다</div></div>
-<!-- ##RESEARCH_E## --></div>
+      <div id="dart-list" style="overflow-x:auto;overflow-y:hidden;flex:1;white-space:nowrap"><!-- ##DART_S## --><div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">⟳ 수집 대기중...</div><!-- ##DART_E## --></div>
+      <div id="research-list" style="overflow-x:auto;overflow-y:hidden;flex:1;white-space:nowrap;display:none"><!-- ##RESEARCH_S## --><div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">⟳ 수집 대기중...</div><!-- ##RESEARCH_E## --></div>
     </div>
     <div class="split-right" id="dart-detail"><div class="detail-empty">← 항목 클릭 시 표시됨 시 상세 표시됨</div></div>
   </div>
@@ -147,41 +138,13 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
 <div id="pane-ai" class="pn">
   <div class="split">
     <div class="split-left">
-      <div class="li active" onclick="showAIItem('overview',this)"><div class="li-title">📊 종합분석</div><div class="li-time" id="ai-ts-label"><!-- ##AI_TS_S## -->03/15 17:32<!-- ##AI_TS_E## --></div></div>
+      <div class="li active" onclick="showAIItem('overview',this)"><div class="li-title">📊 종합분석</div><div class="li-time" id="ai-ts-label"><!-- ##AI_TS_S## -->대기<!-- ##AI_TS_E## --></div></div>
       <div class="li" onclick="showAIItem('bias',this)"><div class="li-title">🔍 뉴스편향/오류</div></div>
       <div class="li" onclick="showAIItem('forecast',this)"><div class="li-title">📈 시장전망</div></div>
       <div class="li" onclick="showAIItem('picks',this)"><div class="li-title">🎯 추천종목</div></div>
       <div class="li" onclick="showAIItem('risk',this)"><div class="li-title">⚠ 리스크경고</div></div>
     </div>
-    <div class="split-right" id="ai-detail"><!-- ##AI_S## -->
-<div class="ai-section"><div class="ai-body">BIAS
-
-국내 뉴스의 에너지 안보 관련 보도가 집중됨. 가스공사-일본 LNG 기업 협약, 미국 알래스카 LNG 수출 환영 등 긍정적 프레임으로 포장하고 있으나, 실제로는 에너지 공급망 불안정성을 반영하는 것임. 삼성전자 관련해서는 &quot;지금이 바닥&quot; 같은 희망적 표현과 &quot;비상경영&quot; 같은 부정적 표현이 혼재하여 투자자 혼란 야기 가능성 있음. 북한 신형방사포 관련 보도는 지정학적 리스크를 과소평가하는 경향 보임.
-
-한줄요약: 에너지 안보 이슈를 낙관적으로 포장하고 삼성전자 관련 상반된 시각이 혼재함
-
-</div></div><div class="ai-section"><div class="ai-body">FORECAST
-
-원달러 환율 1,494원 돌파로 수출기업 수혜 예상되나 수입인플레이션 압력 증가할 것임. 브렌트유 98.91달러(-4.10%) 하락은 일시적 조정으로 보이며, 중동 지정학적 긴장 지속시 재상승 가능성 높음. VIX 27.19 수준은 여전히 높은 변동성 시사함. 국내 증시는 삼성전자 실적 개선 기대감과 에너지주 강세로 단기 반등 가능하나, 대외 불확실성으로 제한적일 것임. 첨단전략산업 13.3조원 금융지원 발표는 중장기 성장동력 확보에 긍정적임.
-
-한줄요약: 단기 반등 가능하나 대외 리스크로 상승폭 제한적, 에너지·반도체 중심 선별 장세 전망
-
-</div></div><div class="ai-section"><div class="ai-body">PICKS
-
-1. 삼성전자: 하나증권 &quot;실적 상향과 밸류업 기대감&quot; 리포트, HBM 수요 증가와 메모리 회복 기대
-2. SK텔레콤: 하나증권 &quot;이번엔 기대가 되는 4월&quot; 평가, AI·통신 인프라 투자 확대 수혜
-3. 아크릴: 한투증권 &quot;엔비디아 GPU 26만 장 직접 수혜주&quot; 분석, AI 반도체 공급망 핵심 업체
-4. RF머트리얼즈: 하나증권 &quot;광모듈 수요가 끝이 없다&quot; 평가, 데이터센터 확장 수혜 지속
-5. 에코프로: 2차전지 소재 대장주, 북미 IRA 정책과 전기차 시장 확대 수혜 기대
-
-한줄요약: AI·반도체·2차전지 테마 중심으로 기술주 강세 지속 전망
-
-</div></div><div class="ai-section"><div class="ai-body">RISK
-
-중동 지정학적 리스크 확산시 유가 급등과 글로벌 인플레이션 재점화 우려됨. 이란 하이퍼소닉 미사일 10발 발사, 이라크 내 공습 등 긴장 고조 상황임. 북한 신형방사포 420km 사정거리는 한반도 안보 위협 증가 의미함. 원달러 환율 1,500원 돌파시 수입물가 상승압력 본격화될 것임. 중국 경제 둔화와 미국 금리 불확실성도 지속되고 있음. 삼성전자 비상경영 확대는 실적 부진 심화 가능성 시사함.
-
-한줄요약: 지정학적 리스크와 환율 상승이 핵심 변수, 방어적 포트폴리오 구성 필요</div></div>
-<!-- ##AI_E## --></div>
+    <div class="split-right" id="ai-detail"><!-- ##AI_S## --><div style="padding:20px;color:var(--txt3);font-size:12px">⟳ 분석 대기중...</div><!-- ##AI_E## --></div>
   </div>
 </div>
 
@@ -193,12 +156,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
         <button class="on" onclick="switchIssueTab('global',this)">글로벌 이슈</button>
         <button onclick="switchIssueTab('domestic',this)">국내 이슈</button>
       </div>
-      <div id="issues-global-list" style="overflow-x:auto;overflow-y:hidden;flex:1;white-space:nowrap"><!-- ##ISSUES_GL_S## -->
-<div class="li" onclick="showIssue('gl',0)" id="gl-iss-0"><div class="li-tag"><span>🔴</span><span class="li-time">임팩트: 상</span></div><div class="li-title">1. 중동 지정학적 리스크 급등</div></div><div class="li" onclick="showIssue('gl',1)" id="gl-iss-1"><div class="li-tag"><span>🟠</span><span class="li-time">임팩트: 상</span></div><div class="li-title">2. 달러-원 환율 급등</div></div><div class="li" onclick="showIssue('gl',2)" id="gl-iss-2"><div class="li-tag"><span>🟡</span><span class="li-time">임팩트: 중</span></div><div class="li-title">3. 아시아 오일 쇼크 우려</div></div><div class="li" onclick="showIssue('gl',3)" id="gl-iss-3"><div class="li-tag"><span>🟢</span><span class="li-time">임팩트: 중</span></div><div class="li-title">4. VIX 27 돌파로 변동성 확대</div></div><div class="li" onclick="showIssue('gl',4)" id="gl-iss-4"><div class="li-tag"><span>🔵</span><span class="li-time">임팩트: 하</span></div><div class="li-title">5. 금가격 소폭 상승 제한적</div></div>
-<!-- ##ISSUES_GL_E## --></div>
-      <div id="issues-domestic-list" style="overflow-x:auto;overflow-y:hidden;flex:1;white-space:nowrap;display:none"><!-- ##ISSUES_KR_S## -->
-<div class="li" onclick="showIssue('kr',0)" id="kr-iss-0"><div class="li-tag"><span>🔴</span><span class="li-time">임팩트: 상</span></div><div class="li-title">1. 삼성전자 비상경영체제 확산</div></div><div class="li" onclick="showIssue('kr',1)" id="kr-iss-1"><div class="li-tag"><span>🟠</span><span class="li-time">임팩트: 상</span></div><div class="li-title">2. 유가 급등과 에너지 안보 이슈</div></div><div class="li" onclick="showIssue('kr',2)" id="kr-iss-2"><div class="li-tag"><span>🟡</span><span class="li-time">임팩트: 중</span></div><div class="li-title">3. 북한 방사포 시험과 지정학적 리스크</div></div><div class="li" onclick="showIssue('kr',3)" id="kr-iss-3"><div class="li-tag"><span>🟢</span><span class="li-time">임팩트: 중</span></div><div class="li-title">4. 원달러 환율 1,494원 돌파</div></div><div class="li" onclick="showIssue('kr',4)" id="kr-iss-4"><div class="li-tag"><span>🔵</span><span class="li-time">임팩트: 하</span></div><div class="li-title">5. 에코프로 자회사 경영사항 공시</div></div>
-<!-- ##ISSUES_KR_E## --></div>
+      <div id="issues-global-list" style="overflow-x:auto;overflow-y:hidden;flex:1;white-space:nowrap"><!-- ##ISSUES_GL_S## --><div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">⟳ 분석 대기중...</div><!-- ##ISSUES_GL_E## --></div>
+      <div id="issues-domestic-list" style="overflow-x:auto;overflow-y:hidden;flex:1;white-space:nowrap;display:none"><!-- ##ISSUES_KR_S## --><div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">⟳ 분석 대기중...</div><!-- ##ISSUES_KR_E## --></div>
     </div>
     <div class="split-right" id="issues-detail"><div class="detail-empty">이슈 클릭 시 상세 분석 표시됨</div></div>
   </div>
@@ -375,141 +334,44 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
    ════════════════════════════════════════ */
 
 // ##TICKS_S##
-const TICKS=[
-  {k:'KOSPI',l:'KOSPI',v:'5,487',c:'+0.00%',cl:'up'},
-  {k:'KOSDAQ',l:'KOSDAQ',v:'1,152.96',c:'+0.00%',cl:'up'},
-  {k:'BRENT',l:'BRENT',v:'$98.91',c:'4.10%',cl:'dn'},
-  {k:'WTI',l:'WTI',v:'$98.71',c:'+0.00%',cl:'up'},
-  {k:'GOLD',l:'GOLD',v:'$5,062',c:'+0.18%',cl:'up'},
-  {k:'NATGAS',l:'NAT GAS',v:'$3.131',c:'+0.00%',cl:'up'},
-  {k:'SP500',l:'S&P500',v:'6,632.19',c:'+0.00%',cl:'up'},
-  {k:'NIKKEI',l:'NIKKEI',v:'53,820',c:'+0.00%',cl:'up'},
-  {k:'VIX',l:'VIX',v:'27.19',c:'+0.00%',cl:'up'},
-  {k:'UST10',l:'10Y UST',v:'4.285',c:'+0.00%',cl:'up'},
-  {k:'USDKRW',l:'USD/KRW',v:'1,494.40',c:'+1.62%',cl:'up'},
-];
+const TICKS=[];
 // ##TICKS_E##
 
 // ##KR_NEWS_DATA_S##
-const KR_NEWS=
-[
-  {title:'가스공사, 日 최대 LNG 기업과 수급 협약 체결…“에너지 안보 협력”',titleKo:'',src:'매일경제',tag:'한국',tc:'tk',time:'31분전',link:'https://www.mk.co.kr/news/economy/11988392'},
-  {title:'농협 특성 살린 포용금융…농협금융, 1726개 마을기업 돕기 나선다',titleKo:'',src:'매일경제',tag:'한국',tc:'tk',time:'3시간전',link:'https://www.mk.co.kr/news/economy/11988346'},
-  {title:'석유 최고가격제 사흘째…전국 평균 휘발유 1842원, 전날보다 3원↓',titleKo:'',src:'매일경제',tag:'한국',tc:'tk',time:'2시간전',link:'https://www.mk.co.kr/news/economy/11988356'},
-  {title:'김정은 “420㎞ 사정권내 적들에 불안”…신형방사포 12발 무력시위',titleKo:'',src:'매경증권',tag:'한국',tc:'tk',time:'3시간전',link:'https://www.mk.co.kr/news/politics/11988347'},
-  {title:'"지금이 바닥이다"…삼성전자 집중 매수',titleKo:'',src:'네이버금융(주식)',tag:'한국',tc:'tk',time:'방금',link:'https://finance.naver.com/news/news_read.naver?article_id=0005262441&office_id=015&mode=LSS2D&type=0§ion_id=101§ion_id2=258§ion_id3=&date=20260315&page=1'},
-  {title:'[단독] 삼성전자, 휴대폰 사업까지 \'비상경영\' 가동...DX 전 영역으로 확대',titleKo:'',src:'네이버금융(투자)',tag:'한국',tc:'tk',time:'방금',link:'https://finance.naver.com/news/news_read.naver?article_id=0005491573&office_id=014&mode=LSS2D&type=0§ion_id=101§ion_id2=261§ion_id3=&date=20260315&page=1'},
-  {title:'방사포 훈련 참관 김정은 “420㎞ 사정권내 적들에 불안 줄 것”…딸 주애 동행',titleKo:'',src:'매경증권',tag:'한국',tc:'tk',time:'8시간전',link:'https://www.mk.co.kr/news/politics/11988262'},
-  {title:'\'천정부지\' 유가에 원유·원전 ETF 날았다',titleKo:'',src:'한경증권',tag:'한국',tc:'tk',time:'11분전',link:'https://www.hankyung.com/article/2026031519891'},
-  {title:'韓 “美 알래스카 LNG 수출 환영”',titleKo:'',src:'서울경제',tag:'한국',tc:'tk',time:'32분전',link:'https://www.sedaily.com/article/20019482'},
-  {title:'[전화성의 기술창업 Targeting] 〈388〉 [AC협회장 주간록98] 13.3조원 첨단전략산업 금융지원, 기술패권 시대 새로운 기회',titleKo:'',src:'전자신문',tag:'한국',tc:'te',time:'32분전',link:'https://www.etnews.com/20260314000012'},
-];
+const KR_NEWS=[];
 // ##KR_NEWS_DATA_E##
 
 // ##GL_NEWS_DATA_S##
-const GL_NEWS=
-[
-  {title:'Iraq warns of strikes near Syria detainees\' prison',titleKo:'',src:'ET India',tag:'아시아',tc:'tg',time:'20분전',link:'https://economictimes.indiatimes.com/news/international/world-news/middle-east-war-iraq-warns-of-strikes-near-prison-housing-islamic-state-group-detainees/articleshow/129586694.cms'},
-  {title:'Top of the world: why Indonesian workers are happiest in Asia-Pacific',titleKo:'',src:'SCMP',tag:'아시아',tc:'tg',time:'32분전',link:'https://www.scmp.com/week-asia/lifestyle-culture/article/3346545/top-world-why-indonesian-workers-are-happiest-asia-pacific?utm_source=rss_feed'},
-  {title:'Oil crisis to send shockwaves across Asia',titleKo:'',src:'ET India',tag:'아시아',tc:'tg',time:'34분전',link:'https://economictimes.indiatimes.com/industry/energy/oil-gas/oil-supply-disruption-to-have-knock-on-effects-across-key-sectors-in-asia-morgan-stanley/articleshow/129586506.cms'},
-  {title:'Minab: When the world’s most precise missile chose a classroom',titleKo:'',src:'Al Jazeera',tag:'중동',tc:'tw',time:'38분전',link:'https://www.aljazeera.com/opinions/2026/3/15/minab-when-the-worlds-most-precise-missile-chose-a-classroom?traffic_source=rss'},
-  {title:'Iran launches ten hypersonic missiles in latest wave of attacks',titleKo:'',src:'ME Eye',tag:'중동',tc:'tw',time:'45분전',link:'https://www.middleeasteye.net/live-blog/live-blog-update/iran-launches-ten-hypersonic-missiles-latest-wave-attacks'},
-  {title:'Netanyahu\'s office debunks assassination rumours',titleKo:'',src:'ET India',tag:'아시아',tc:'tg',time:'50분전',link:'https://economictimes.indiatimes.com/news/international/global-trends/netanyahu-assassination-rumours-israeli-pms-office-debunks-fake-reports-after-ai-video-sparks-conspiracy-theories/articleshow/129586408.cms'},
-  {title:'Smoke rises over Beirut’s southern suburbs',titleKo:'',src:'Al Jazeera',tag:'중동',tc:'tw',time:'51분전',link:'https://www.aljazeera.com/video/newsfeed/2026/3/15/smoke-rises-over-beiruts-southern-suburbs?traffic_source=rss'},
-  {title:'Israel’s health ministry says 108 injured in last 24 hours',titleKo:'',src:'ME Eye',tag:'중동',tc:'tw',time:'53분전',link:'https://www.middleeasteye.net/live-blog/live-blog-update/israels-health-ministry-says-108-injured-last-24-hours'},
-  {title:'Republic of Congo votes in election that could extend Sassou’s 42-year rule',titleKo:'',src:'Al Jazeera',tag:'중동',tc:'tw',time:'54분전',link:'https://www.aljazeera.com/news/2026/3/15/republic-of-congo-votes-in-election-that-could-extend-sassous-42-year-rule?traffic_source=rss'},
-  {title:'US military names 6 crew members killed on refueling plane that crashed in Iraq',titleKo:'',src:'ToI',tag:'중동',tc:'tw',time:'1시간전',link:'https://www.timesofisrael.com/us-military-names-6-crew-members-killed-on-refueling-plane-that-crashed-in-iraq/'},
-];
+const GL_NEWS=[];
 // ##GL_NEWS_DATA_E##
 
 // ##DART_DATA_S##
-const DART_ITEMS=
-[
-  {title:'감사보고서제출(자회사의 주요경영사항)              ',corp:'에코프로',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902277'},
-  {title:'[기재정정]타인에대한채무보증결정              ',corp:'엔켐',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902200'},
-  {title:'감사보고서제출              ',corp:'에코글로우',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902326'},
-  {title:'[기재정정]주주총회소집결의              ',corp:'DH오토리드',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902324'},
-  {title:'타인에대한채무보증결정              ',corp:'DH오토리드',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902322'},
-  {title:'감사보고서제출              ',corp:'계양전기',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313802321'},
-  {title:'감사보고서제출              ',corp:'엠디바이스',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902320'},
-  {title:'주주총회집중일개최사유신고              ',corp:'슈피겐코리아',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902085'},
-  {title:'현금ㆍ현물배당결정              ',corp:'DH오토리드',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902318'},
-  {title:'감사보고서제출              ',corp:'엠게임',date:'20260313',type:'',link:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313902317'},
-];
+const DART_ITEMS=[];
 // ##DART_DATA_E##
 
 // ##RESEARCH_DATA_S##
-const RESEARCH_ITEMS=
-[
-  {title:'실적과 모멘텀 모두 매력적이다!',firm:'유안타증권',stock:'헥토이노베이션',date:'5639',link:'company_read.naver?nid=90920&page=1'},
-  {title:'올해도 N수생 多',firm:'유안타증권',stock:'디지털대성',date:'3701',link:'company_read.naver?nid=90919&page=1'},
-  {title:'광모듈 수요가 끝이 없다',firm:'하나증권',stock:'RF머트리얼즈',date:'5873',link:'company_read.naver?nid=90918&page=1'},
-  {title:'이번엔 기대가 되는 4월입니다',firm:'하나증권',stock:'SK텔레콤',date:'5747',link:'company_read.naver?nid=90917&page=1'},
-  {title:'실적 상향과 밸류업 기대감',firm:'하나증권',stock:'삼성전자',date:'11919',link:'company_read.naver?nid=90916&page=1'},
-  {title:'자기주식 7.0% 보유 중',firm:'하나증권',stock:'피에이치에이',date:'3979',link:'company_read.naver?nid=90915&page=1'},
-  {title:'[탐방노트] 연간 가이던스 달성 가능성 충분',firm:'하나증권',stock:'두산밥캣',date:'3510',link:'company_read.naver?nid=90914&page=1'},
-  {title:'엔비디아 GPU 26만 장의 직접적인 수혜주',firm:'한국투자증권',stock:'아크릴',date:'3792',link:'company_read.naver?nid=90913&page=1'},
-  {title:'콥데이 후기: 다가오는 기대 신작들',firm:'한국투자증권',stock:'컴투스',date:'2783',link:'company_read.naver?nid=90912&page=1'},
-  {title:'사업다변화에 성공, 역대 최대 매출 달성 지..',firm:'유진투자증권',stock:'헥토이노베이션',date:'3529',link:'company_read.naver?nid=90911&page=1'},
-  {title:'단순 테마 아닌 구조적 성장 가능성을 확인하..',firm:'SK증권',stock:'빅텍',date:'3573',link:'company_read.naver?nid=90910&page=1'},
-  {title:'고부가제품 확대 기대',firm:'한국IR협의회',stock:'덕산네오룩스',date:'3697',link:'company_read.naver?nid=90909&page=1'},
-  {title:'해외 마케팅과 지역 확대로 글로벌 존재감 확..',firm:'DS투자증권',stock:'농심',date:'5427',link:'company_read.naver?nid=90907&page=1'},
-  {title:'해외 성장이 아쉬워',firm:'교보증권',stock:'농심',date:'4633',link:'company_read.naver?nid=90906&page=1'},
-  {title:'최소한 시총 1조원은 되어야 정상입니다',firm:'하나증권',stock:'쏠리드',date:'8980',link:'company_read.naver?nid=90905&page=1'},
-];
+const RESEARCH_ITEMS=[];
 // ##RESEARCH_DATA_E##
 
 // ##KR_NEWS_SUMMARIES_S##
-const KR_NEWS_SUMMARIES={
-  '가스공사, 日 최대 LNG 기업과 수급 협약 체결…“에':{html:'# 가스공사, 日 최대 LNG 기업과 수급 협약 체결…&quot;에너지 안보 협력&quot;\n\n## 배경\n\n한국가스공사가 일본 최대 LNG(액화천연가스) 기업인 JERA와 포괄적 수급 협약을 체결했음. 이번 협약은 양국 간 에너지 안보 강화를 위한 전략적 제휴의 성격을 지니며, 급변하는 글로벌 에너지 시장 환경 속에서 안정적인 가스 공급망 확보를 목적으로 함. JERA는 도쿄전력과 주부전력의 합작회사로 일본 내 LNG 수입량의 약 35%를 담당하는 최대 사업자임.\n\n## 핵심 내용\n\n협약의 주요 내용은 LNG 현물거래 확대, 공동 조달 메커니즘 구축, 비상시 상호 지원 체계 마련 등으로 구성됨. 특히 시장 변동성이 클 때 양사가 보유한 LNG 물량을 상호 융통할 수 있는 체계를 구축하여 공급 안정성을 높이는 데 중점을 둠. 또한 차세대 청정 에너지원인 암모니아와 수소 등 신규 사업 영역에서도 협력 방안을 모색하기로 합의했음.\n\n## 시장 영향\n\n이번 협약은 한일 양국의 에너지 안보 강화뿐만 아니라 동북아 지역 전체의 LNG 시장 안정화에 기여할 것으로 예상됨. 글로벌 LNG 가격 변동성이 높아진 상황에서 주요 구매국 간 협력은 가격 협상력 제고와 공급망 리스크 분산 효과를 가져올 전망임. 특히 러시아-우크라이나 전쟁으로 인한 에너지 공급 불안정성이 지속되는 가운데, 아시아 국가 간 에너지 협력 모델로 주목받고 있음.\n\n## 투자 시사점\n\n에너지 안보가 글로벌 화두로 부상하면서 LNG 관련 인프라 투자와 장기 계약의 중요성이 더욱 커지고 있음. 한국가스공사의 이번 협약은 안정적인 가스 도입선 다변화를 통한 사업 안정성 제고로 평가되며, 장기',ts:'03/15 17:32'},
-  '농협 특성 살린 포용금융…농협금융, 1726개 마을기업':{html:'## 농협금융, 포용금융으로 지역경제 활성화 나서\n\n### 배경\n농협금융지주가 농업협동조합의 고유 특성을 살린 포용금융 정책을 본격 추진함. 이번 정책은 지역사회와 밀접한 관계를 맺고 있는 농협의 네트워크를 활용해 소외계층과 지역경제 발전에 기여하려는 취지임. 특히 전국 1726개 마을기업을 대상으로 한 맞춤형 금융지원이 핵심 내용으로 포함됨.\n\n### 핵심 내용\n농협금융은 마을기업들의 자금조달 어려움 해소를 위해 전방위적 지원책을 마련함. 기존 담보 중심의 대출심사에서 벗어나 마을기업의 성장가능성과 지역사회 기여도를 종합 평가하는 새로운 심사모델을 도입할 예정임. 또한 농협의 전국 지점망을 통해 마을기업 경영진에게 직접적인 컨설팅과 교육 프로그램을 제공하기로 함.\n\n### 정책적 의미\n이번 농협금융의 포용금융 정책은 정부의 지역균형발전 정책과도 맥을 같이함. 수도권 집중화로 인한 지방 소멸 위기 상황에서 마을기업 지원은 지역경제의 내생적 성장동력 확보 차원에서 중요한 의미를 가짐. 농협이 가진 협동조합 정신과 지역밀착형 네트워크가 포용금융의 효과를 극대화할 것으로 예상됨.\n\n### 시장 영향\n농협금융의 이번 정책은 기존 시중은행들의 포용금융 접근방식과 차별화됨. 농업과 농촌을 기반으로 한 농협의 특성상 실질적인 지역경제 파급효과가 클 것으로 전망됨. 마을기업들의 자금접근성 개선으로 지역 내 일자리 창출과 소득증대 효과도 기대됨. 다만 수익성과 공공성의 균형점 찾기가 향후 과제로 남음.\n\n### 투자 시사점\n농협금융의 포용금융 강화는 ESG 경영 측면에서 긍정적 평가 요인임. 다만 단기적으로는 마을기업 대',ts:'03/15 17:32'},
-  '석유 최고가격제 사흘째…전국 평균 휘발유 1842원, ':{html:'## 석유류 가격 하락세 지속되며 최고가격제 효과 나타남\n\n배경\n정부의 석유류 최고가격제 시행 3일째를 맞아 전국 평균 휘발유 가격이 리터당 1842원을 기록하며 전날 대비 3원 하락함. 이번 조치는 국제유가 상승과 환율 변동으로 인한 국내 석유류 가격 급등을 억제하기 위해 도입된 것임. 주유소 업계에서는 가격 상한제로 인한 마진 압박을 우려하고 있으나, 소비자들은 연료비 부담 완화에 긍정적 반응을 보이고 있음.\n\n핵심 내용\n최고가격제 시행 이후 휘발유 가격 하락폭은 점진적으로 확대되고 있음. 지역별로는 수도권과 대도시 지역의 가격 하락이 상대적으로 크게 나타나고 있으며, 대형 주유소 체인을 중심으로 가격 조정이 빠르게 진행됨. 경유 가격도 리터당 1650원대로 전날 대비 소폭 하락했음. 정부는 주유소별 가격 모니터링을 강화하고 있으며, 최고가격제 위반 시 과태료 부과 등 제재 방안을 마련함.\n\n시장 영향\n석유류 가격 안정화는 물가 상승률 둔화에 긍정적 영향을 미칠 것으로 예상됨. 특히 운수업계와 물류업체들의 운영비 부담이 줄어들면서 전반적인 유통비용 안정화로 이어질 가능성이 높음. 주유소 업계는 수익성 악화를 우려하고 있으나, 정부의 유류세 인하 연장 검토 등으로 일부 완충 효과가 기대됨.\n\n투자 시사점\n석유 유통업체들의 단기 수익성에는 부정적 영향이 불가피함. 그러나 소비 회복과 물가 안정 기여도를 감안할 때 중장기적으로는 내수 경제에 도움이 될 전망임. 정유업체들은 정제마진 개선보다는 비용 효율성 제고에 집중할 필요가 있음. 대중교통과 물류 관련 기업들은 운영비 절감 효과로 실적',ts:'03/15 17:32'},
-};
+const KR_NEWS_SUMMARIES={};
 // ##KR_NEWS_SUMMARIES_E##
 
 // ##GL_NEWS_SUMMARIES_S##
-const GL_NEWS_SUMMARIES={
-  'Iraq warns of strikes near Syr':{html:'이라크, 시리아 억류시설 인근 공격 경고\n\n이라크 정부가 시리아 내 구금시설 주변에서 발생할 수 있는 군사 공격에 대해 공식 경고를 발표함. 이라크 외무부는 시리아-이라크 국경 지역의 불안정한 상황이 지역 전체의 안보에 심각한 위협이 될 수 있다고 밝힘.\n\n현재 시리아 내 여러 구금시설에는 ISIS 조직원들과 그 가족들이 대거 억류되어 있는 상황임. 이라크는 이들 시설에 대한 공격이 발생할 경우 수천 명의 위험 인물들이 탈출할 가능성을 우려하고 있음. 특히 국경을 접한 이라크로의 대량 유입 시나리오를 심각하게 검토 중임.\n\n지역 안보 전문가들은 시리아 정세 불안이 중동 전체의 테러 위험도를 급격히 높일 수 있다고 분석함. 구금시설 붕괴 시 ISIS 잔존 세력의 재결집 가능성과 함께 이라크, 터키, 레바논 등 주변국으로의 확산 우려가 커지고 있음.\n\n이번 경고는 중동 지역의 지정학적 리스크가 다시 한번 부각되는 계기가 됨. 원유 공급망에 대한 우려와 함께 글로벌 에너지 시장의 변동성 확대가 예상됨. 투자자들은 중동 관련 섹터와 에너지 가격 동향을 면밀히 모니터링할 필요가 있음.',ts:'03/15 17:32'},
-  'Top of the world: why Indonesi':{html:'## 인도네시아 근로자, 아태지역 최고 행복도 기록\n\n### 배경\n인도네시아 근로자들이 아시아태평양 지역에서 가장 높은 직장 만족도를 보이고 있다고 조사됨. 최근 발표된 글로벌 근로자 행복지수에서 인도네시아가 아태지역 1위를 차지했으며, 이는 경제성장과 함께 나타나는 긍정적 변화로 분석됨. 특히 코로나19 팬데믹 이후 회복세를 보이는 동남아시아 국가들 중에서도 인도네시아의 근로환경 개선이 두드러지게 나타남.\n\n### 핵심 요인\n인도네시아 근로자들의 높은 행복도는 여러 복합적 요인에서 기인함. 먼저 정부의 적극적인 일자리 창출 정책과 최저임금 인상이 근로자들의 경제적 안정감을 높였음. 또한 젊은 인구 구조와 디지털 경제 확산으로 새로운 취업 기회가 늘어나면서 근로자들의 미래에 대한 낙관론이 확산됨. 기업들의 복리후생 개선과 유연근무제 도입도 직장 만족도 상승에 기여했다고 분석됨.\n\n### 지역별 비교\n아태지역 내 다른 국가들과 비교했을 때 인도네시아의 우위는 더욱 명확해짐. 한국과 일본은 장시간 근무와 높은 업무 스트레스로 인해 상대적으로 낮은 점수를 기록함. 싱가포르와 홍콩 역시 높은 생활비와 치열한 경쟁 환경이 근로자 행복도에 부정적 영향을 미쳤음. 반면 인도네시아는 상대적으로 낮은 생활비 부담과 공동체 문화가 근로자들의 스트레스 완화에 도움이 됨.\n\n### 시장 영향\n인도네시아의 높은 근로자 만족도는 경제 전반에 긍정적 신호로 작용함. 안정된 노동 환경은 생산성 향상과 소비 증대로 이어져 내수 경제 활성화에 기여할 것으로 예상됨. 특히 제조업과 서비스업 분야에서 인력 확보와 유지가',ts:'03/15 17:32'},
-  'Oil crisis to send shockwaves ':{html:'배경\n중동 지역의 지정학적 긴장 고조와 주요 산유국들의 생산 차질로 국제 유가가 급등하면서 아시아 전역에 경제적 파장이 확산되고 있음. 최근 몇 주간 브렌트유 가격이 배럴당 90달러를 돌파하며 올해 최고치를 기록했고, 공급망 불안정성이 지속되면서 추가 상승 압력이 가중되는 상황임.\n\n핵심 영향\n아시아 주요국들은 석유 수입 의존도가 높아 유가 상승에 특히 취약한 구조를 보임. 중국, 일본, 인도, 한국 등은 에너지 수입국으로서 원자재 비용 증가가 제조업과 운송업 전반에 직격탄을 가할 전망임. 특히 인도의 경우 석유 수입 비중이 85%에 달해 경상수지 악화와 루피화 약세 압력이 심화될 것으로 예상됨.\n\n인플레이션 압박\n유가 상승은 아시아 각국의 소비자물가 상승률을 끌어올리는 주요 동력이 될 것으로 분석됨. 운송비 상승이 전방위적으로 전이되면서 식료품과 생필품 가격도 동반 상승할 가능성이 높음. 이는 각국 중앙은행의 통화정책 딜레마를 가중시킬 것으로 보임.\n\n통화정책 영향\n아시아 주요국 중앙은행들은 인플레이션 억제와 경기 부양 사이에서 어려운 선택을 해야 하는 상황에 직면함. 유가 상승으로 인한 수입 인플레이션 압력이 강화되면서 금리 인상 압박이 증가할 것으로 예상되며, 이는 경기 둔화 우려를 키우는 요인이 됨.\n\n투자 시사점\n에너지 안보 강화와 대체에너지 전환이 아시아 각국의 핵심 과제로 부상할 전망임. 재생에너지, 원자력, LNG 관련 투자가 확대될 것으로 예상되며, 석유화학과 항공업계는 단기적 수익성 악화에 직면할 가능성이 높음. 투자자들은 에너지 전환 관련 섹터와 방어적',ts:'03/15 17:32'},
-};
+const GL_NEWS_SUMMARIES={};
 // ##GL_NEWS_SUMMARIES_E##
 
 // ##DART_SUMMARIES_S##
-const DART_SUMMARIES={
-  '감사보고서제출(자회사의 주요경영사항)          ':{html:'## 에코프로 자회사 감사보고서 제출 관련 공시 분석\n\n에코프로가 자회사의 주요경영사항에 대한 감사보고서를 제출했다고 공시함. 이는 자회사의 연간 재무제표 및 경영성과에 대한 외부감사가 완료되었음을 의미함. 특히 에코프로의 주요 자회사들인 에코프로비엠, 에코프로머티리얼즈 등은 배터리 소재 사업의 핵심 계열사로서 전체 그룹 실적에 미치는 영향이 상당함.\n\n자회사 감사보고서는 연결재무제표 작성의 기초자료가 되며, 향후 에코프로 연결실적 발표 시 중요한 참고자료로 활용됨. 감사의견이 적정의견인지 여부와 함께 자회사별 매출액, 영업이익, 재무상태 등의 세부 내용이 투자판단에 핵심 요소가 될 것임. 특히 배터리 소재 시장의 급성장 속에서 각 자회사의 개별 성과와 수익성 개선 정도가 주목받을 전망임.\n\n투자자들은 이번 감사보고서를 통해 에코프로 그룹 전체의 사업 포트폴리오별 성과를 구체적으로 파악할 수 있게 됨. 자회사별 실적 차별화와 향후 성장 동력 평가가 가능해져 그룹 전체 밸류에이션 재평가의 근거자료로 활용될 것으로 예상됨.',ts:'03/15 17:32'},
-  '[기재정정]타인에대한채무보증결정             ':{html:'엔켐 타인에 대한 채무보증 결정 기재정정 분석\n\n엔켐이 이전에 공시한 타인에 대한 채무보증 결정 내용에 오류가 발견되어 기재정정을 실시함. 채무보증은 회사가 제3자의 채무에 대해 보증인 역할을 하는 것으로, 피보증인이 채무를 이행하지 못할 경우 엔켐이 대신 변제해야 하는 우발부채가 발생할 수 있음. 기재정정이라는 것은 보증금액, 보증기간, 피보증인 정보 등 핵심 사항에 변경이 있었음을 의미함.\n\n채무보증은 엔켐의 재무상태에 직접적인 영향을 미치지 않지만, 우발채무로서 잠재적 리스크 요소임. 특히 피보증인의 신용도가 악화되거나 사업 환경이 어려워질 경우, 엔켐이 대위변제 의무를 져야 할 가능성이 있음. 기재정정의 구체적 내용과 변경 사유를 확인하여 보증 조건의 변화가 엔켐에게 유리한지 불리한지 판단이 필요함.\n\n투자자는 정정된 보증 내용을 통해 엔켐의 위험관리 능력과 관계사에 대한 지원 수준을 평가할 수 있음. 보증금액이 엔켐 자기자본 대비 과도하게 크지 않은지, 피보증인의 재무건전성은 양호한지 등을 종합적으로 검토해야 함. 기재정정 자체는 단순 오기 수정일 가능성이 높으나, 정정 내용의 실질적 변화 정도에 따라 투자 의사결정에',ts:'03/15 17:32'},
-  '감사보고서제출              ':{html:'에코글로우 감사보고서 제출 - 투자자 핵심 분석\n\n에코글로우가 감사보고서를 제출함에 따라 연간 재무성과와 경영현황이 공개됨. 감사보고서는 독립된 회계법인이 기업의 재무제표를 검증한 결과물로, 투자자들이 기업의 실제 재무건전성을 판단할 수 있는 핵심 자료임. 특히 매출액, 영업이익, 당기순이익 등 주요 지표와 함께 부채비율, 유동비율 등 안전성 지표를 면밀히 검토해야 함.\n\n감사의견이 적정의견인지 한정의견인지 여부가 중요한 판단기준임. 적정의견은 재무제표가 신뢰할 만하다는 의미이며, 한정의견이나 부적정의견의 경우 투자 시 각별한 주의가 필요함. 또한 계속기업 전제에 대한 불확실성 언급 여부도 확인해야 할 핵심 포인트임.\n\n전년 대비 재무지표 변화 추이와 업계 평균 대비 성과를 비교분석하여 기업의 경쟁력을 평가해야 함. 특히 현금흐름표를 통해 실질적인 현금창출 능력을 점검하고, 주석사항에서 우발부채나 중요한 후속사건 등 잠재적 리스크 요인을 파악하는 것이 투자 의사결정에 도움이 됨.',ts:'03/15 17:32'},
-};
+const DART_SUMMARIES={};
 // ##DART_SUMMARIES_E##
 
 // ##AI_DATA_S##
-const AI_SECTIONS={
-  full:'',
-  bias:'BIAS\n\n국내 뉴스의 에너지 안보 관련 보도가 집중됨. 가스공사-일본 LNG 기업 협약, 미국 알래스카 LNG 수출 환영 등 긍정적 프레임으로 포장하고 있으나, 실제로는 에너지 공급망 불안정성을 반영하는 것임. 삼성전자 관련해서는 &quot;지금이 바닥&quot; 같은 희망적 표현과 &quot;비상경영&quot; 같은 부정적 표현이 혼재하여 투자자 혼란 야기 가능성 있음. 북한 신형방사포 관련 보도는 지정학적 리스크를 과소평가하는 경향 보임.\n\n한줄요약: 에너지 안보 이슈를 낙관적으로 포장하고 삼성전자 관련 상반된 시각이 혼재함\n\n',
-  forecast:'FORECAST\n\n원달러 환율 1,494원 돌파로 수출기업 수혜 예상되나 수입인플레이션 압력 증가할 것임. 브렌트유 98.91달러(-4.10%) 하락은 일시적 조정으로 보이며, 중동 지정학적 긴장 지속시 재상승 가능성 높음. VIX 27.19 수준은 여전히 높은 변동성 시사함. 국내 증시는 삼성전자 실적 개선 기대감과 에너지주 강세로 단기 반등 가능하나, 대외 불확실성으로 제한적일 것임. 첨단전략산업 13.3조원 금융지원 발표는 중장기 성장동력 확보에 긍정적임.\n\n한줄요약: 단기 반등 가능하나 대외 리스크로 상승폭 제한적, 에너지·반도체 중심 선별 장세 전망\n\n',
-  picks:'PICKS\n\n1. 삼성전자: 하나증권 &quot;실적 상향과 밸류업 기대감&quot; 리포트, HBM 수요 증가와 메모리 회복 기대\n2. SK텔레콤: 하나증권 &quot;이번엔 기대가 되는 4월&quot; 평가, AI·통신 인프라 투자 확대 수혜\n3. 아크릴: 한투증권 &quot;엔비디아 GPU 26만 장 직접 수혜주&quot; 분석, AI 반도체 공급망 핵심 업체\n4. RF머트리얼즈: 하나증권 &quot;광모듈 수요가 끝이 없다&quot; 평가, 데이터센터 확장 수혜 지속\n5. 에코프로: 2차전지 소재 대장주, 북미 IRA 정책과 전기차 시장 확대 수혜 기대\n\n한줄요약: AI·반도체·2차전지 테마 중심으로 기술주 강세 지속 전망\n\n',
-  risk:'RISK\n\n중동 지정학적 리스크 확산시 유가 급등과 글로벌 인플레이션 재점화 우려됨. 이란 하이퍼소닉 미사일 10발 발사, 이라크 내 공습 등 긴장 고조 상황임. 북한 신형방사포 420km 사정거리는 한반도 안보 위협 증가 의미함. 원달러 환율 1,500원 돌파시 수입물가 상승압력 본격화될 것임. 중국 경제 둔화와 미국 금리 불확실성도 지속되고 있음. 삼성전자 비상경영 확대는 실적 부진 심화 가능성 시사함.\n\n한줄요약: 지정학적 리스크와 환율 상승이 핵심 변수, 방어적 포트폴리오 구성 필요'
-};
+const AI_SECTIONS={full:'',bias:'',forecast:'',picks:'',risk:''};
 // ##AI_DATA_E##
 
 // ##ISSUES_DATA_S##
-const GLOBAL_ISSUES=
-[
-  {title:'중동 지정학적 리스크 급등',impact:'상',summary:'이란이 하이퍼소닉 미사일 10발을 발사하고 이라크에서 미군 급유기가 추락하는 등 중동 긴장이 고조됨. 브렌트유 4.1% 급락에도 불구하고 추가 공급 차질 우려가 확산되고 있음.',scenarioA:'외교적 중재로 긴장 완화, 유가 안정화 (30%)',scenarioB:'군사적 충돌 확산, 유가 급등 및 리스크오프 (70%)',drivers:["이란 미사일 공격", "미군 사상자 발생", "이스라엘 반격 가능성"],action:'에너지주 매수, 방어주 비중 확대, 달러 강세 수혜 포지션'},
-  {title:'달러-원 환율 급등',impact:'상',summary:'달러원이 1,494원까지 1.62% 급등하며 심리적 1,500원선에 근접함. 중동 리스크와 미국 금리 상승 압력이 원화 약세를 가속화하고 있음.',scenarioA:'1,480원대 반락, 당국 개입 효과 (25%)',scenarioB:'1,500원 돌파, 추가 약세 진행 (75%)',drivers:["중동 리스크오프", "미국 금리 상승", "한국 경상수지 악화"],action:'수출주 수혜, 수입 의존 기업 회피, 환헤지 비용 점검'},
-  {title:'아시아 오일 쇼크 우려',impact:'중',summary:'석유 위기가 아시아 전반에 충격파를 보낼 것으로 예상됨. 에너지 수입 의존도가 높은 아시아 국가들의 인플레이션 압력이 가중될 전망임.',scenarioA:'공급망 다각화로 충격 완화 (40%)',scenarioB:'아시아 경제성장률 하락, 인플레 재점화 (60%)',drivers:["원유 공급 차질", "아시아 에너지 의존도", "달러 강세"],action:'아시아 그로스 포지션 축소, 인플레이션 헤지 자산 확대'},
-  {title:'VIX 27 돌파로 변동성 확대',impact:'중',summary:'공포지수 VIX가 27.19로 상승하며 시장 불안감이 고조됨. 지정학적 리스크와 환율 급변이 변동성 확대를 주도하고 있음.',scenarioA:'일시적 스파이크, 25 하회 복귀 (35%)',scenarioB:'30 돌파, 지속적 고변동성 (65%)',drivers:["중동 긴장", "환율 급변", "연말 유동성 감소"],action:'변동성 매도 전략 중단, 방어적 포트폴리오 구성'},
-  {title:'금가격 소폭 상승 제한적',impact:'하',summary:'금값이 0.18% 소폭 상승에 그치며 안전자산 수요가 예상보다 제한적임. 달러 강세와 금리 상승 압력이 금 상승을 억제하고 있음.',scenarioA:'5,100달러 돌파, 안전자산 수요 확대 (45%)',scenarioB:'4,900달러 하회, 달러 강세 지속 (55%)',drivers:["달러 강세", "실질금리 상승", "지정학적 리스크"],action:'금 비중 중립 유지, 달러 자산 선호 지속'},
-];
-const DOMESTIC_ISSUES=
-[
-  {title:'삼성전자 비상경영체제 확산',impact:'상',summary:'삼성전자가 휴대폰 사업까지 비상경영을 확대하며 DX 전 영역으로 구조조정을 확산함. 시장에서는 현재 주가가 바닥이라는 관측과 함께 집중매수세가 나타남.',scenarioA:'반도체 회복과 함께 구조조정 효과가 나타나 실적 개선 (40%)',scenarioB:'글로벌 경기둔화로 구조조정에도 불구하고 실적 부진 지속 (60%)',drivers:["반도체 업황", "중국 경기회복", "환율 변동"],action:'분할매수 전략으로 장기 포지션 구축'},
-  {title:'유가 급등과 에너지 안보 이슈',impact:'상',summary:'브렌트유가가 98달러대를 기록하며 천정부지로 상승. 정부는 석유 최고가격제를 시행하고 있으나 휘발유 가격은 여전히 높은 수준임.',scenarioA:'지정학적 긴장 완화로 유가 안정화 (30%)',scenarioB:'지정학적 리스크 지속으로 유가 추가 상승 (70%)',drivers:["지정학적 리스크", "OPEC 생산정책", "글로벌 수요"],action:'정유업체 및 대체에너지 관련주 관심'},
-  {title:'북한 방사포 시험과 지정학적 리스크',impact:'중',summary:'김정은이 420km 사정권 신형방사포 12발 시험을 참관하며 무력시위를 실시함. 한반도 긴장 고조로 국방 관련주에 관심이 집중됨.',scenarioA:'일시적 긴장 후 외교적 해결 모색 (60%)',scenarioB:'군사적 긴장 지속으로 리스크 프리미엄 확대 (40%)',drivers:["한미 군사훈련", "북중 관계", "국제제재"],action:'방산업체와 안전자산 선별 투자'},
-  {title:'원달러 환율 1,494원 돌파',impact:'중',summary:'원달러 환율이 1,494원을 돌파하며 1.62% 상승함. 달러 강세와 국내 경기 불안으로 원화 약세 압력이 지속됨.',scenarioA:'연준 정책 변화로 달러 약세 전환 (30%)',scenarioB:'미국 강달러 정책 지속으로 원화 추가 약세 (70%)',drivers:["연준 정책", "한국 경상수지", "외국인 투자"],action:'수출기업 수혜주와 해외 진출 기업 관심'},
-  {title:'에코프로 자회사 경영사항 공시',impact:'하',summary:'에코프로가 자회사의 주요경영사항에 대한 감사보고서를 제출함. 2차전지 소재 업계의 투명성 제고 노력이 지속됨.',scenarioA:'투명경영으로 ESG 평가 개선 및 기관 투자 유입 (70%)',scenarioB:'추가 이슈 발생으로 주가 변동성 확대 (30%)',drivers:["2차전지 수요", "중국 경쟁사", "원자재 가격"],action:'실적 모멘텀 확인 후 투자 결정'},
-];
+const GLOBAL_ISSUES=[];
+const DOMESTIC_ISSUES=[];
 // ##ISSUES_DATA_E##
 
 // ##STOCK_ANALYSIS_S##
@@ -547,14 +409,7 @@ const CMDTY_DATA={
 // ##CMDTY_E##
 
 // ##CMDTY_CHART_S##
-const CMDTY_CHART={
-  'BRENT':[{"d": "11/25", "v": 62.48}, {"d": "11/26", "v": 63.13}, {"d": "11/28", "v": 63.2}, {"d": "12/01", "v": 63.17}, {"d": "12/02", "v": 62.45}, {"d": "12/03", "v": 62.67}, {"d": "12/04", "v": 63.26}, {"d": "12/05", "v": 63.75}, {"d": "12/08", "v": 62.49}, {"d": "12/09", "v": 61.94}, {"d": "12/10", "v": 62.21}, {"d": "12/11", "v": 61.28}, {"d": "12/12", "v": 61.12}, {"d": "12/15", "v": 60.56}, {"d": "12/16", "v": 58.92}, {"d": "12/17", "v": 59.68}, {"d": "12/18", "v": 59.82}, {"d": "12/19", "v": 60.47}, {"d": "12/22", "v": 62.07}, {"d": "12/23", "v": 62.38}, {"d": "12/24", "v": 62.24}, {"d": "12/26", "v": 60.64}, {"d": "12/29", "v": 61.94}, {"d": "12/30", "v": 61.92}, {"d": "12/31", "v": 60.85}, {"d": "01/02", "v": 60.75}, {"d": "01/05", "v": 61.76}, {"d": "01/06", "v": 60.7}, {"d": "01/07", "v": 59.96}, {"d": "01/08", "v": 61.99}, {"d": "01/09", "v": 63.34}, {"d": "01/12", "v": 63.87}, {"d": "01/13", "v": 65.47}, {"d": "01/14", "v": 66.52}, {"d": "01/15", "v": 63.76}, {"d": "01/16", "v": 64.13}, {"d": "01/20", "v": 64.92}, {"d": "01/21", "v": 65.24}, {"d": "01/22", "v": 64.06}, {"d": "01/23", "v": 65.88}, {"d": "01/26", "v": 65.59}, {"d": "01/27", "v": 67.57}, {"d": "01/28", "v": 68.4}, {"d": "01/29", "v": 70.71}, {"d": "01/30", "v": 70.69}, {"d": "02/02", "v": 66.3}, {"d": "02/03", "v": 67.33}, {"d": "02/04", "v": 69.46}, {"d": "02/05", "v": 67.55}, {"d": "02/06", "v": 68.05}, {"d": "02/09", "v": 69.04}, {"d": "02/10", "v": 68.8}, {"d": "02/11", "v": 69.4}, {"d": "02/12", "v": 67.52}, {"d": "02/13", "v": 67.75}, {"d": "02/17", "v": 67.42}, {"d": "02/18", "v": 70.35}, {"d": "02/19", "v": 71.66}, {"d": "02/20", "v": 71.76}, {"d": "02/23", "v": 71.49}, {"d": "02/24", "v": 70.77}, {"d": "02/25", "v": 70.85}, {"d": "02/26", "v": 70.75}, {"d": "02/27", "v": 72.48}, {"d": "03/02", "v": 77.74}, {"d": "03/03", "v": 81.4}, {"d": "03/04", "v": 81.4}, {"d": "03/05", "v": 85.41}, {"d": "03/06", "v": 92.69}, {"d": "03/09", "v": 98.96}, {"d": "03/10", "v": 87.8}, {"d": "03/11", "v": 91.98}, {"d": "03/12", "v": 100.46}, {"d": "03/13", "v": 103.14}, {"d": "03/14", "v": 98.91}],
-  'WTI':[{"d": "11/25", "v": 57.95}, {"d": "11/26", "v": 58.65}, {"d": "11/28", "v": 58.55}, {"d": "12/01", "v": 59.32}, {"d": "12/02", "v": 58.64}, {"d": "12/03", "v": 58.95}, {"d": "12/04", "v": 59.67}, {"d": "12/05", "v": 60.08}, {"d": "12/08", "v": 58.88}, {"d": "12/09", "v": 58.25}, {"d": "12/10", "v": 58.46}, {"d": "12/11", "v": 57.6}, {"d": "12/12", "v": 57.44}, {"d": "12/15", "v": 56.82}, {"d": "12/16", "v": 55.27}, {"d": "12/17", "v": 55.94}, {"d": "12/18", "v": 56.15}, {"d": "12/19", "v": 56.66}, {"d": "12/22", "v": 58.01}, {"d": "12/23", "v": 58.38}, {"d": "12/24", "v": 58.35}, {"d": "12/26", "v": 56.74}, {"d": "12/29", "v": 58.08}, {"d": "12/30", "v": 57.95}, {"d": "12/31", "v": 57.42}, {"d": "01/02", "v": 57.32}, {"d": "01/05", "v": 58.32}, {"d": "01/06", "v": 57.13}, {"d": "01/07", "v": 55.99}, {"d": "01/08", "v": 57.76}, {"d": "01/09", "v": 59.12}, {"d": "01/12", "v": 59.5}, {"d": "01/13", "v": 61.15}, {"d": "01/14", "v": 62.02}, {"d": "01/15", "v": 59.19}, {"d": "01/16", "v": 59.44}, {"d": "01/20", "v": 60.34}, {"d": "01/21", "v": 60.62}, {"d": "01/22", "v": 59.36}, {"d": "01/23", "v": 61.07}, {"d": "01/26", "v": 60.63}, {"d": "01/27", "v": 62.39}, {"d": "01/28", "v": 63.21}, {"d": "01/29", "v": 65.42}, {"d": "01/30", "v": 65.21}, {"d": "02/02", "v": 62.14}, {"d": "02/03", "v": 63.21}, {"d": "02/04", "v": 65.14}, {"d": "02/05", "v": 63.29}, {"d": "02/06", "v": 63.55}, {"d": "02/09", "v": 64.36}, {"d": "02/10", "v": 63.96}, {"d": "02/11", "v": 64.63}, {"d": "02/12", "v": 62.84}, {"d": "02/13", "v": 62.89}, {"d": "02/17", "v": 62.33}, {"d": "02/18", "v": 65.19}, {"d": "02/19", "v": 66.43}, {"d": "02/20", "v": 66.39}, {"d": "02/23", "v": 66.31}, {"d": "02/24", "v": 65.63}, {"d": "02/25", "v": 65.42}, {"d": "02/26", "v": 65.21}, {"d": "02/27", "v": 67.02}, {"d": "03/02", "v": 71.23}, {"d": "03/03", "v": 74.56}, {"d": "03/04", "v": 74.66}, {"d": "03/05", "v": 81.01}, {"d": "03/06", "v": 90.9}, {"d": "03/09", "v": 94.77}, {"d": "03/10", "v": 83.45}, {"d": "03/11", "v": 87.25}, {"d": "03/12", "v": 95.73}, {"d": "03/13", "v": 98.71}, {"d": "03/14", "v": 98.71}],
-  'GOLD':[{"d": "11/25", "v": 4139.2}, {"d": "11/26", "v": 4165.2}, {"d": "11/28", "v": 4218.3}, {"d": "12/01", "v": 4239.3}, {"d": "12/02", "v": 4186.6}, {"d": "12/03", "v": 4199.3}, {"d": "12/04", "v": 4211.8}, {"d": "12/05", "v": 4212.9}, {"d": "12/08", "v": 4187.2}, {"d": "12/09", "v": 4206.7}, {"d": "12/10", "v": 4196.4}, {"d": "12/11", "v": 4285.5}, {"d": "12/12", "v": 4300.1}, {"d": "12/15", "v": 4306.7}, {"d": "12/16", "v": 4304.5}, {"d": "12/17", "v": 4347.5}, {"d": "12/18", "v": 4339.5}, {"d": "12/19", "v": 4361.4}, {"d": "12/22", "v": 4444.6}, {"d": "12/23", "v": 4482.8}, {"d": "12/24", "v": 4480.6}, {"d": "12/26", "v": 4529.1}, {"d": "12/29", "v": 4325.1}, {"d": "12/30", "v": 4370.1}, {"d": "12/31", "v": 4325.6}, {"d": "01/02", "v": 4314.4}, {"d": "01/05", "v": 4436.9}, {"d": "01/06", "v": 4482.2}, {"d": "01/07", "v": 4449.3}, {"d": "01/08", "v": 4449.7}, {"d": "01/09", "v": 4490.3}, {"d": "01/12", "v": 4604.3}, {"d": "01/13", "v": 4589.2}, {"d": "01/14", "v": 4626.3}, {"d": "01/15", "v": 4616.3}, {"d": "01/16", "v": 4588.4}, {"d": "01/20", "v": 4759.6}, {"d": "01/21", "v": 4831.8}, {"d": "01/22", "v": 4908.8}, {"d": "01/23", "v": 4976.2}, {"d": "01/26", "v": 5079.7}, {"d": "01/27", "v": 5079.9}, {"d": "01/28", "v": 5301.6}, {"d": "01/29", "v": 5318.4}, {"d": "01/30", "v": 4713.9}, {"d": "02/02", "v": 4622.5}, {"d": "02/03", "v": 4903.7}, {"d": "02/04", "v": 4920.4}, {"d": "02/05", "v": 4861.4}, {"d": "02/06", "v": 4951.2}, {"d": "02/09", "v": 5050.9}, {"d": "02/10", "v": 5003.8}, {"d": "02/11", "v": 5071.6}, {"d": "02/12", "v": 4923.7}, {"d": "02/13", "v": 5022.0}, {"d": "02/17", "v": 4882.9}, {"d": "02/18", "v": 4986.5}, {"d": "02/19", "v": 4975.9}, {"d": "02/20", "v": 5059.3}, {"d": "02/23", "v": 5204.7}, {"d": "02/24", "v": 5155.8}, {"d": "02/25", "v": 5206.4}, {"d": "02/26", "v": 5176.5}, {"d": "02/27", "v": 5230.5}, {"d": "03/02", "v": 5294.4}, {"d": "03/03", "v": 5107.4}, {"d": "03/04", "v": 5120.2}, {"d": "03/05", "v": 5065.3}, {"d": "03/06", "v": 5146.1}, {"d": "03/09", "v": 5091.5}, {"d": "03/10", "v": 5229.7}, {"d": "03/11", "v": 5167.4}, {"d": "03/12", "v": 5115.8}, {"d": "03/13", "v": 5052.5}, {"d": "03/14", "v": 5061.7}],
-  'NATGAS':[{"d": "11/25", "v": 4.42}, {"d": "11/26", "v": 4.56}, {"d": "11/28", "v": 4.85}, {"d": "12/01", "v": 4.92}, {"d": "12/02", "v": 4.84}, {"d": "12/03", "v": 4.99}, {"d": "12/04", "v": 5.06}, {"d": "12/05", "v": 5.29}, {"d": "12/08", "v": 4.91}, {"d": "12/09", "v": 4.57}, {"d": "12/10", "v": 4.59}, {"d": "12/11", "v": 4.23}, {"d": "12/12", "v": 4.11}, {"d": "12/15", "v": 4.01}, {"d": "12/16", "v": 3.89}, {"d": "12/17", "v": 4.02}, {"d": "12/18", "v": 3.91}, {"d": "12/19", "v": 3.98}, {"d": "12/22", "v": 3.96}, {"d": "12/23", "v": 4.41}, {"d": "12/24", "v": 4.24}, {"d": "12/26", "v": 4.37}, {"d": "12/29", "v": 4.69}, {"d": "12/30", "v": 3.97}, {"d": "12/31", "v": 3.69}, {"d": "01/02", "v": 3.62}, {"d": "01/05", "v": 3.52}, {"d": "01/06", "v": 3.35}, {"d": "01/07", "v": 3.53}, {"d": "01/08", "v": 3.41}, {"d": "01/09", "v": 3.17}, {"d": "01/12", "v": 3.41}, {"d": "01/13", "v": 3.42}, {"d": "01/14", "v": 3.12}, {"d": "01/15", "v": 3.13}, {"d": "01/16", "v": 3.1}, {"d": "01/20", "v": 3.91}, {"d": "01/21", "v": 4.88}, {"d": "01/22", "v": 5.05}, {"d": "01/23", "v": 5.28}, {"d": "01/26", "v": 6.8}, {"d": "01/27", "v": 6.95}, {"d": "01/28", "v": 7.46}, {"d": "01/29", "v": 3.92}, {"d": "01/30", "v": 4.35}, {"d": "02/02", "v": 3.24}, {"d": "02/03", "v": 3.31}, {"d": "02/04", "v": 3.46}, {"d": "02/05", "v": 3.51}, {"d": "02/06", "v": 3.42}, {"d": "02/09", "v": 3.14}, {"d": "02/10", "v": 3.12}, {"d": "02/11", "v": 3.16}, {"d": "02/12", "v": 3.22}, {"d": "02/13", "v": 3.24}, {"d": "02/17", "v": 3.03}, {"d": "02/18", "v": 3.01}, {"d": "02/19", "v": 3.0}, {"d": "02/20", "v": 3.05}, {"d": "02/23", "v": 2.98}, {"d": "02/24", "v": 2.91}, {"d": "02/25", "v": 2.97}, {"d": "02/26", "v": 2.83}, {"d": "02/27", "v": 2.86}, {"d": "03/02", "v": 2.96}, {"d": "03/03", "v": 3.05}, {"d": "03/04", "v": 2.92}, {"d": "03/05", "v": 3.0}, {"d": "03/06", "v": 3.19}, {"d": "03/09", "v": 3.12}, {"d": "03/10", "v": 3.02}, {"d": "03/11", "v": 3.21}, {"d": "03/12", "v": 3.23}, {"d": "03/13", "v": 3.13}, {"d": "03/14", "v": 3.13}],
-  'SILVER':[{"d": "11/25", "v": 50.93}, {"d": "11/26", "v": 52.92}, {"d": "11/28", "v": 56.45}, {"d": "12/01", "v": 58.42}, {"d": "12/02", "v": 57.98}, {"d": "12/03", "v": 57.92}, {"d": "12/04", "v": 56.85}, {"d": "12/05", "v": 58.42}, {"d": "12/08", "v": 57.78}, {"d": "12/09", "v": 60.17}, {"d": "12/10", "v": 60.38}, {"d": "12/11", "v": 63.93}, {"d": "12/12", "v": 61.36}, {"d": "12/15", "v": 62.94}, {"d": "12/16", "v": 62.7}, {"d": "12/17", "v": 66.24}, {"d": "12/18", "v": 64.59}, {"d": "12/19", "v": 66.85}, {"d": "12/22", "v": 67.91}, {"d": "12/23", "v": 70.49}, {"d": "12/24", "v": 71.03}, {"d": "12/26", "v": 76.49}, {"d": "12/29", "v": 69.86}, {"d": "12/30", "v": 77.37}, {"d": "12/31", "v": 70.13}, {"d": "01/02", "v": 70.56}, {"d": "01/05", "v": 76.16}, {"d": "01/06", "v": 80.53}, {"d": "01/07", "v": 77.14}, {"d": "01/08", "v": 74.72}, {"d": "01/09", "v": 78.88}, {"d": "01/12", "v": 84.61}, {"d": "01/13", "v": 85.88}, {"d": "01/14", "v": 90.87}, {"d": "01/15", "v": 91.88}, {"d": "01/16", "v": 88.09}, {"d": "01/20", "v": 94.21}, {"d": "01/21", "v": 92.21}, {"d": "01/22", "v": 95.98}, {"d": "01/23", "v": 100.93}, {"d": "01/26", "v": 115.08}, {"d": "01/27", "v": 105.52}, {"d": "01/28", "v": 113.11}, {"d": "01/29", "v": 114.04}, {"d": "01/30", "v": 78.29}, {"d": "02/02", "v": 76.78}, {"d": "02/03", "v": 83.04}, {"d": "02/04", "v": 84.17}, {"d": "02/05", "v": 76.53}, {"d": "02/06", "v": 76.74}, {"d": "02/09", "v": 82.07}, {"d": "02/10", "v": 80.22}, {"d": "02/11", "v": 83.75}, {"d": "02/12", "v": 75.55}, {"d": "02/13", "v": 77.85}, {"d": "02/17", "v": 73.45}, {"d": "02/18", "v": 77.51}, {"d": "02/19", "v": 77.57}, {"d": "02/20", "v": 82.28}, {"d": "02/23", "v": 86.52}, {"d": "02/24", "v": 87.46}, {"d": "02/25", "v": 90.94}, {"d": "02/26", "v": 87.0}, {"d": "02/27", "v": 92.68}, {"d": "03/02", "v": 88.28}, {"d": "03/03", "v": 82.92}, {"d": "03/04", "v": 82.63}, {"d": "03/05", "v": 81.69}, {"d": "03/06", "v": 83.82}, {"d": "03/09", "v": 84.03}, {"d": "03/10", "v": 89.08}, {"d": "03/11", "v": 85.07}, {"d": "03/12", "v": 84.67}, {"d": "03/13", "v": 80.91}, {"d": "03/14", "v": 81.34}],
-  'COPPER':[{"d": "11/25", "v": 5.0}, {"d": "11/26", "v": 5.1}, {"d": "11/28", "v": 5.19}, {"d": "12/01", "v": 5.22}, {"d": "12/02", "v": 5.16}, {"d": "12/03", "v": 5.31}, {"d": "12/04", "v": 5.29}, {"d": "12/05", "v": 5.38}, {"d": "12/08", "v": 5.36}, {"d": "12/09", "v": 5.24}, {"d": "12/10", "v": 5.28}, {"d": "12/11", "v": 5.43}, {"d": "12/12", "v": 5.28}, {"d": "12/15", "v": 5.34}, {"d": "12/16", "v": 5.29}, {"d": "12/17", "v": 5.36}, {"d": "12/18", "v": 5.37}, {"d": "12/19", "v": 5.44}, {"d": "12/22", "v": 5.44}, {"d": "12/23", "v": 5.48}, {"d": "12/24", "v": 5.5}, {"d": "12/26", "v": 5.77}, {"d": "12/29", "v": 5.49}, {"d": "12/30", "v": 5.73}, {"d": "12/31", "v": 5.63}, {"d": "01/02", "v": 5.64}, {"d": "01/05", "v": 5.92}, {"d": "01/06", "v": 6.01}, {"d": "01/07", "v": 5.81}, {"d": "01/08", "v": 5.75}, {"d": "01/09", "v": 5.86}, {"d": "01/12", "v": 5.99}, {"d": "01/13", "v": 5.97}, {"d": "01/14", "v": 6.01}, {"d": "01/15", "v": 5.95}, {"d": "01/16", "v": 5.79}, {"d": "01/20", "v": 5.77}, {"d": "01/21", "v": 5.73}, {"d": "01/22", "v": 5.74}, {"d": "01/23", "v": 5.91}, {"d": "01/26", "v": 5.98}, {"d": "01/27", "v": 5.83}, {"d": "01/28", "v": 5.89}, {"d": "01/29", "v": 6.18}, {"d": "01/30", "v": 5.9}, {"d": "02/02", "v": 5.8}, {"d": "02/03", "v": 6.06}, {"d": "02/04", "v": 5.83}, {"d": "02/05", "v": 5.8}, {"d": "02/06", "v": 5.86}, {"d": "02/09", "v": 5.95}, {"d": "02/10", "v": 5.9}, {"d": "02/11", "v": 5.95}, {"d": "02/12", "v": 5.77}, {"d": "02/13", "v": 5.79}, {"d": "02/17", "v": 5.63}, {"d": "02/18", "v": 5.79}, {"d": "02/19", "v": 5.73}, {"d": "02/20", "v": 5.83}, {"d": "02/23", "v": 5.77}, {"d": "02/24", "v": 5.92}, {"d": "02/25", "v": 5.98}, {"d": "02/26", "v": 5.95}, {"d": "02/27", "v": 6.0}, {"d": "03/02", "v": 5.89}, {"d": "03/03", "v": 5.77}, {"d": "03/04", "v": 5.86}, {"d": "03/05", "v": 5.75}, {"d": "03/06", "v": 5.76}, {"d": "03/09", "v": 5.8}, {"d": "03/10", "v": 5.9}, {"d": "03/11", "v": 5.85}, {"d": "03/12", "v": 5.82}, {"d": "03/13", "v": 5.71}, {"d": "03/14", "v": 5.76}],
-};
+const CMDTY_CHART={};
 // ##CMDTY_CHART_E##
 
 /* ════════════════════════════════════════
@@ -573,7 +428,7 @@ function renderKrNews(){
   if(!KR_NEWS.length){document.getElementById('knews-list').innerHTML='<div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">뉴스 없음 — 다음 갱신 대기중</div>';return;}
   var h='';
   KR_NEWS.forEach(function(n,i){h+='<div class="li" onclick="showNews(\'kr\','+i+')" id="kn-'+i+'"><div class="li-tag"><span class="tag '+(n.tc||'tk')+'">'+(n.tag||'한국')+'</span><span class="li-time">'+(n.time||'')+' · '+esc(n.src||'')+'</span></div><div class="li-title">'+esc(n.title)+'</div></div>';});
-  h+='<div class="news-ts">'+KR_NEWS.length+'건 · <!-- ##TS_SHORT_S## -->03/15 17:32<!-- ##TS_SHORT_E## --></div>';
+  h+='<div class="news-ts">'+KR_NEWS.length+'건 · <!-- ##TS_SHORT_S## -->--<!-- ##TS_SHORT_E## --></div>';
   document.getElementById('knews-list').innerHTML=h;
 }
 
@@ -582,7 +437,7 @@ function renderGlNews(){
   if(!GL_NEWS.length){document.getElementById('gnews-list').innerHTML='<div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">뉴스 없음 — 다음 갱신 대기중</div>';return;}
   var h='';
   GL_NEWS.forEach(function(n,i){h+='<div class="li" onclick="showNews(\'gl\','+i+')" id="gn-'+i+'"><div class="li-tag"><span class="tag '+(n.tc||'tm')+'">'+(n.tag||'글로벌')+'</span><span class="li-time">'+(n.time||'')+' · '+esc(n.src||'')+'</span></div><div class="li-title">'+esc(n.titleKo||n.title)+'</div></div>';});
-  h+='<div class="news-ts">'+GL_NEWS.length+'건 · <!-- ##TS_SHORT_S## -->03/15 17:32<!-- ##TS_SHORT_E## --></div>';
+  h+='<div class="news-ts">'+GL_NEWS.length+'건 · <!-- ##TS_SHORT_S## -->--<!-- ##TS_SHORT_E## --></div>';
   document.getElementById('gnews-list').innerHTML=h;
 }
 
