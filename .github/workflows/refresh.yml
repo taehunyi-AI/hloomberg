@@ -2,8 +2,14 @@ name: HLOOMBERG Refresh
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 * * * *'   # 5분마다: 시세+뉴스+공시+AI종합분석
+    - cron: '0 * * * *'     # 1시간마다: 종목 상세분석
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'stock = 종목분석만, 빈칸 = 전체'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -11,7 +17,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
 
     steps:
       - uses: actions/checkout@v4
@@ -28,17 +34,13 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          STOCK_MODE: ${{ (github.event.schedule == '0 * * * *' || github.event.inputs.mode == 'stock') && '1' || '0' }}
         run: python refresh.py
 
-      - name: Deploy to gh-pages
+      - name: Commit & Push
         run: |
           git config user.name  "hloomberg-bot"
           git config user.email "bot@hloomberg"
-          # gh-pages 브랜치로 패치된 파일만 배포 (main에는 키 없는 원본 유지)
-          git fetch origin gh-pages 2>/dev/null || true
-          git checkout --orphan gh-pages-tmp
-          git reset
-          cp hloomberg.html index.html
-          git add index.html
-          git commit -m "refresh $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
-          git push origin gh-pages-tmp:gh-pages --force
+          git add hloomberg.html
+          git diff --cached --quiet || git commit -m "refresh $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+          git push
