@@ -614,7 +614,7 @@ if ANTHROPIC_KEY:
         print('  [1/3] 종합분석...')
         t = call_claude(
             'claude-sonnet-4-20250514',
-            '한국 증시 전문 애널리스트. 한국어. HTML 마크업 사용 가능.',
+            '한국 증시 전문 애널리스트. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. HTML 마크업 사용 가능.',
             combined_prompt + '\n\n4섹션 분석:\n### BIAS\n뉴스 편향/오류 분석\n### FORECAST\n시장 전망\n### PICKS\n추천종목 3~5개\n### RISK\n핵심 리스크 경고\n(각 섹션 끝에 한줄요약 추가)',
             3000
         )
@@ -646,7 +646,7 @@ if ANTHROPIC_KEY:
     )
     try:
         print('  [2/3] 글로벌 이슈분석...')
-        gt = call_claude('claude-sonnet-4-20250514', '글로벌 매크로 전략가. 한국어.',
+        gt = call_claude('claude-sonnet-4-20250514', '글로벌 매크로 전략가. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지.',
             f'[시세]\n{price_str}\n[해외뉴스]\n{gl_str}\n\n글로벌 금융시장 핵심 이슈 5개 선정.\n{issue_prompt}', 3000)
         global_issues = parse_issues_json(gt)
         print(f'  글로벌 이슈: {len(global_issues)}개')
@@ -655,7 +655,7 @@ if ANTHROPIC_KEY:
 
     try:
         print('  [3/3] 국내 이슈분석...')
-        dt = call_claude('claude-sonnet-4-20250514', '한국 증시 전문 애널리스트. 한국어.',
+        dt = call_claude('claude-sonnet-4-20250514', '한국 증시 전문 애널리스트. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지.',
             f'[시세]\n{price_str}\n[국내뉴스]\n{kr_str}\n[공시]\n{dart_str}\n\n한국 증시/경제 핵심 이슈 5개 선정.\n{issue_prompt}', 3000)
         domestic_issues = parse_issues_json(dt)
         print(f'  국내 이슈: {len(domestic_issues)}개')
@@ -720,7 +720,7 @@ if ANTHROPIC_KEY:
             if key in cache:
                 continue
             try:
-                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 한국어. 투자자 관점 핵심 요약. 3~4단락.',
+                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 투자자 관점 핵심 요약. 3~4단락.',
                     f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}", 600)
                 t_html = HE(t.replace('**','').replace('*',''))
                 cache[key] = {'html': t_html, 'ts': TS_SHORT}
@@ -733,9 +733,9 @@ if ANTHROPIC_KEY:
 
     print(f'\n[뉴스/공시 요약] 새 항목만 처리 (1회 최대 3건)...')
     kr_news_summaries = summarize_news(kr_news, kr_news_summaries, '국내뉴스',
-        '뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.', max_new=3)
+        '뉴스 제목 기반 상세 내용 한국어 작성. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 배경/핵심/시장영향/투자시사점 4~6단락.', max_new=3)
     gl_news_summaries = summarize_news(gl_news, gl_news_summaries, '해외뉴스',
-        '뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.', max_new=3)
+        '뉴스 제목 기반 상세 내용 한국어 작성. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 배경/핵심/시장영향/투자시사점 4~6단락.', max_new=3)
     dart_summaries    = summarize_dart(dart_items, dart_summaries, max_new=3)
 
 # ─────────────────────────────────────────
@@ -931,7 +931,7 @@ if STOCK_MODE and ANTHROPIC_KEY:
         try:
             t = call_claude(
                 'claude-sonnet-4-20250514',
-                '한국주식 전문 애널리스트. 한국어. 구체적 수치와 가격 레벨 명시.',
+                '한국주식 전문 애널리스트. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 구체적 수치와 가격 레벨 명시.',
                 f"[현재시세]\n{price_str}\n\n"
                 f"종목: {s['name']}({s['th']}/{s['mkt']})\n"
                 f"투자의견: {s['act']}\n현황: {s['desc']}\n\n"
