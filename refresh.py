@@ -310,9 +310,30 @@ for it in fetch_daum_news():
     k = it['title'][:20]
     if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
 
-kr_news.sort(key=lambda x: x.get('stamp',0), reverse=True)
-kr_news = kr_news[:40]
-print(f'  국내뉴스: {len(kr_news)}건')
+# ─────────────────────────────────────────
+# 키워드 가중치 선별
+# ─────────────────────────────────────────
+KW_TIER1 = ['삼성전자','SK하이닉스','LG에너지솔루션','삼성바이오로직스',
+             '현대차','기아','셀트리온','POSCO홀딩스','KB금융','신한지주']
+KW_TIER2 = ['한화에어로스페이스','LIG넥스원','현대로템','한국항공우주',
+             '두산에너빌리티','HD현대일렉트릭','고려아연','LS','KMW','에코프로']
+KW_TIER3 = ['유가','원유','WTI','브렌트','환율','달러','원달러',
+             '금','구리','LNG','이란','중동','OPEC']
+
+def score_news(item):
+    t = item.get('title','')
+    s = item.get('stamp', 0)
+    for kw in KW_TIER1:
+        if kw in t: s += 7200; break
+    for kw in KW_TIER2:
+        if kw in t: s += 5400; break
+    for kw in KW_TIER3:
+        if kw in t: s += 3600; break
+    return s
+
+kr_news.sort(key=score_news, reverse=True)
+kr_news = kr_news[:10]
+print(f'  국내뉴스: {len(kr_news)}건 (키워드 가중치 적용)')
 
 # 해외뉴스
 gl_news = []
@@ -331,7 +352,7 @@ for q, tag, tc in GL_GNEWS:
     time.sleep(0.05)
 
 gl_news.sort(key=lambda x: x.get('stamp',0), reverse=True)
-gl_news = gl_news[:40]
+gl_news = gl_news[:10]
 print(f'  해외뉴스: {len(gl_news)}건')
 
 # ─────────────────────────────────────────
@@ -399,7 +420,18 @@ if not dart_items:
     if not DART_KEY:
         print('  DART_API_KEY 없음 — KIND RSS fallback')
     dart_items = fetch_krx_kind()
-print(f'  공시: {len(dart_items)}건')
+# 키워드 가중치 적용 후 상위 10건
+def score_dart(item):
+    t = item.get('title','') + item.get('corp','')
+    s = 0
+    for kw in KW_TIER1:
+        if kw in t: s += 7200; break
+    for kw in KW_TIER2:
+        if kw in t: s += 5400; break
+    return s
+dart_items.sort(key=score_dart, reverse=True)
+dart_items = dart_items[:10]
+print(f'  공시: {len(dart_items)}건 (키워드 가중치 적용)')
 
 # ─────────────────────────────────────────
 # 4. 리서치 리포트 수집 (네이버 금융 통합)
@@ -641,12 +673,12 @@ if ANTHROPIC_KEY:
         print(f'  공시요약: 신규 {new_count}건 (캐시 총 {len(cache)}건)')
         return cache
 
-    print(f'\n[뉴스/공시 요약] 새 항목만 처리...')
+    print(f'\n[뉴스/공시 요약] 새 항목만 처리 (1회 최대 3건)...')
     kr_news_summaries = summarize_news(kr_news, kr_news_summaries, '국내뉴스',
-        '뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.')
+        '뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.', max_new=3)
     gl_news_summaries = summarize_news(gl_news, gl_news_summaries, '해외뉴스',
-        '뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.')
-    dart_summaries    = summarize_dart(dart_items, dart_summaries)
+        '뉴스 제목 기반 상세 내용 한국어 작성. 배경/핵심/시장영향/투자시사점 4~6단락.', max_new=3)
+    dart_summaries    = summarize_dart(dart_items, dart_summaries, max_new=3)
 
 # ─────────────────────────────────────────
 # 6. HTML 패치
