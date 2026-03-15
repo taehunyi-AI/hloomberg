@@ -390,30 +390,7 @@ gl_news.sort(key=lambda x: x.get('stamp',0), reverse=True)
 gl_news = gl_news[:10]
 print(f'  해외뉴스: {len(gl_news)}건')
 
-# 해외뉴스 제목 한글 번역 (Haiku)
-def translate_titles(items):
-    to_tr = [(i, n) for i, n in enumerate(items) if not re.search(r'[가-힣]', n['title'])]
-    if not to_tr or not ANTHROPIC_KEY: return
-    try:
-        titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
-        result = call_claude('claude-haiku-4-5-20251001',
-            '영문 뉴스 제목을 한국어로 번역. 번호 유지, 번역문만 출력.',
-            f'번역:\n{titles_str}', 1000)
-        for line in result.strip().split('\n'):
-            m = re.match(r'^(\d+)\.\s*(.+)', line.strip())
-            if m:
-                idx = int(m.group(1)) - 1
-                if 0 <= idx < len(to_tr):
-                    orig_idx = to_tr[idx][0]
-                    items[orig_idx]['titleKo'] = m.group(2).strip()
-        print(f'  해외뉴스 제목 번역: {len(to_tr)}건')
-    except Exception as e:
-        print(f'  번역 FAIL: {e}')
-
-if ANTHROPIC_KEY:
-    translate_titles(gl_news)
-
-# ─────────────────────────────────────────
+# 해외뉴스 제목 한글 번역 (Haiku)# ─────────────────────────────────────────
 # 3. DART 공시 수집
 # ─────────────────────────────────────────
 print(f'\n[공시] DART 수집...')
@@ -589,6 +566,29 @@ def call_claude(model, system, user, max_tokens=3000):
         raise Exception(f'Claude HTTP {resp.status_code}: {resp.text[:200]}')
     raw = resp.json()['content'][0]['text'].strip()
     return re.sub(r'^```(?:json)?', '', raw).rstrip('`').strip()
+
+def translate_titles(items):
+    to_tr = [(i, n) for i, n in enumerate(items) if not re.search(r'[가-힣]', n['title'])]
+    if not to_tr or not ANTHROPIC_KEY: return
+    try:
+        titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
+        result = call_claude('claude-haiku-4-5-20251001',
+            '영문 뉴스 제목을 한국어로 번역. 번호 유지, 번역문만 출력.',
+            f'번역:\n{titles_str}', 1000)
+        for line in result.strip().split('\n'):
+            m = re.match(r'^(\d+)\.\s*(.+)', line.strip())
+            if m:
+                idx = int(m.group(1)) - 1
+                if 0 <= idx < len(to_tr):
+                    orig_idx = to_tr[idx][0]
+                    items[orig_idx]['titleKo'] = m.group(2).strip()
+        print(f'  해외뉴스 제목 번역: {len(to_tr)}건')
+    except Exception as e:
+        print(f'  번역 FAIL: {e}')
+
+if ANTHROPIC_KEY:
+    translate_titles(gl_news)
+
 
 if ANTHROPIC_KEY:
     # 시세 요약
