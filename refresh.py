@@ -157,25 +157,34 @@ def fetch_kis_price(code, token):
             'authorization': f'Bearer {token}',
             'appkey':        KIS_APP_KEY,
             'appsecret':     KIS_APP_SECRET,
-            'tr_id':         'FHKST01010100',   # 주식현재가 시세
+            'tr_id':         'FHKST01010100',
         }
         params = {
-            'FID_COND_MRK_DIV_CODE': 'J',       # 주식
+            'FID_COND_MRK_DIV_CODE': 'J',
             'FID_INPUT_ISCD': code,
         }
         r = SESS.get(
             f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price',
             headers=headers, params=params, timeout=6
         )
-        if not r.ok: return None
-        d = r.json().get('output', {})
-        p  = float(d.get('stck_prpr', 0) or 0)    # 현재가
-        c  = float(d.get('prdy_ctrt', 0) or 0)    # 전일대비율
-        p0 = float(d.get('stck_sdpr', 0) or 0)    # 기준가
+        if not r.ok:
+            print(f'    KIS 종목 {code} HTTP {r.status_code}')
+            return None
+        j = r.json()
+        rt = j.get('rt_cd', '')
+        if rt != '0':
+            msg = j.get('msg1', '')[:40]
+            print(f'    KIS 종목 {code} 오류: rt_cd={rt} {msg}')
+            return None
+        d = j.get('output', {})
+        p  = float(d.get('stck_prpr', 0) or 0)
+        c  = float(d.get('prdy_ctrt', 0) or 0)
+        p0 = float(d.get('stck_sdpr', 0) or 0)
         if p > 0:
             return {'p': p, 'c': c, 'p0': p0, 'src': 'KIS'}
+        print(f'    KIS 종목 {code} 가격 0 (장 마감/데이터 없음)')
     except Exception as e:
-        pass
+        print(f'    KIS 종목 {code} 예외: {e}')
     return None
 
 def fetch_kis_index(market_code, token):
@@ -491,30 +500,43 @@ FRED_KEY = os.environ.get('FRED_API_KEY', '')
 fred_data = {}
 
 FRED_SERIES = {
-    'FED_RATE':  {'id':'FEDFUNDS',      'name':'미국 기준금리',   'unit':'%'},
-    'CPI_YOY':   {'id':'CPIAUCSL',      'name':'미국 CPI(YoY)',  'unit':'%'},
-    'UNRATE':    {'id':'UNRATE',         'name':'미국 실업률',     'unit':'%'},
-    'GDP_QOQ':   {'id':'A191RL1Q225SBEA','name':'미국 GDP(QoQ)',  'unit':'%'},
-    'US_PMI':    {'id':'NAPM',           'name':'미국 PMI',       'unit':''},
-    'US10Y':     {'id':'DGS10',          'name':'미국 10Y 국채',  'unit':'%'},
-    'DXY':       {'id':'DTWEXBGS',       'name':'달러인덱스',      'unit':''},
-    'PCE':       {'id':'PCEPI',          'name':'미국 PCE',       'unit':'%'},
+    'FED_RATE':  {'id':'FEDFUNDS',        'name':'미국 기준금리',   'unit':'%',  'yoy':False},
+    'CPI_YOY':   {'id':'CPIAUCSL',        'name':'미국 CPI(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
+    'UNRATE':    {'id':'UNRATE',          'name':'미국 실업률',     'unit':'%',  'yoy':False},
+    'GDP_QOQ':   {'id':'A191RL1Q225SBEA', 'name':'미국 GDP(QoQ)',  'unit':'%',  'yoy':False},  # 이미 성장률
+    'US_PMI':    {'id':'NAPM',            'name':'미국 PMI',       'unit':'',   'yoy':False},
+    'US10Y':     {'id':'DGS10',           'name':'미국 10Y 국채',  'unit':'%',  'yoy':False},
+    'DXY':       {'id':'DTWEXBGS',        'name':'달러인덱스',      'unit':'',   'yoy':False},
+    'PCE':       {'id':'PCEPI',           'name':'미국 PCE(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
 }
 
-def fetch_fred(series_id, limit=2):
+def fetch_fred(series_id, limit=2, yoy=False):
     if not FRED_KEY: return None
     try:
-        url = f'https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_KEY}&file_type=json&sort_order=desc&limit={limit}'
+        lim = 14 if yoy else limit   # YoY 계산 시 13개월 필요
+        url = (f'https://api.stlouisfed.org/fred/series/observations'
+               f'?series_id={series_id}&api_key={FRED_KEY}'
+               f'&file_type=json&sort_order=desc&limit={lim}')
         r = SESS.get(url, timeout=8)
         if not r.ok: return None
         obs = r.json().get('observations', [])
         vals = [(o['date'], float(o['value'])) for o in obs if o['value'] != '.']
-        return vals if vals else None
+        if not vals: return None
+        if yoy and len(vals) >= 13:
+            # YoY = (최신값 - 1년전값) / 1년전값 * 100
+            latest_val   = vals[0][1]
+            year_ago_val = vals[12][1]
+            yoy_pct = round((latest_val - year_ago_val) / year_ago_val * 100, 2) if year_ago_val else 0
+            prev_val     = vals[1][1]
+            year_ago_prev= vals[13][1] if len(vals) > 13 else year_ago_val
+            prev_yoy     = round((prev_val - year_ago_prev) / year_ago_prev * 100, 2) if year_ago_prev else 0
+            return [(vals[0][0], yoy_pct), (vals[1][0], prev_yoy)]
+        return vals[:2]
     except: return None
 
 print('\n[FRED] 미국 경제지표 수집...')
 for key, meta in FRED_SERIES.items():
-    vals = fetch_fred(meta['id'])
+    vals = fetch_fred(meta['id'], yoy=meta.get('yoy', False))
     if vals:
         latest = vals[0]
         prev   = vals[1] if len(vals) > 1 else None
@@ -540,8 +562,7 @@ BOK_SERIES = {
     'KR_RATE':  {'stat':'722Y001', 'item':'0101000', 'cycle':'D', 'name':'한국 기준금리',  'unit':'%'},
     'KR_CPI':   {'stat':'901Y009', 'item':'0',       'cycle':'M', 'name':'한국 CPI',      'unit':''},
     'KR_BOP':   {'stat':'301Y013', 'item':'',        'cycle':'M', 'name':'한국 국제수지',  'unit':'백만달러'},
-    'KR_M2':    {'stat':'101Y004', 'item':'BBSA00',  'cycle':'M', 'name':'통화량 M2',     'unit':'십억원'},
-    # KR_GDP: ECOS GDP 통계표코드 미확인 — 추후 추가
+    'KR_M2':    {'stat':'101Y004', 'item':'',        'cycle':'M', 'name':'통화량 M2',     'unit':'십억원'},
 }
 
 def fetch_bok(stat_code, item_code, cycle='M'):
@@ -658,7 +679,7 @@ KR_RSS = [
     ('https://www.yna.co.kr/rss/economy.xml',       '연합뉴스',    'tk'),
     ('https://rss.etnews.com/Section902.xml',       '전자신문',    'te'),
     ('https://www.asiae.co.kr/rss/economy.htm',     '아시아경제',  'tk'),
-    ('https://biz.chosun.com/rss/news.xml',         '조선비즈',    'tk'),  # 수정: rss.xml → news.xml
+    ('https://www.mt.co.kr/rss/economy.xml',        '머니투데이',  'tk'),  # 조선비즈 대체
 ]
 
 # ── 국내 Google News: 경제·기업·정부정책 키워드
