@@ -268,7 +268,7 @@ TICKERS = {
     'VIX':     '^VIX',    'UST10':   '^TNX',
     'USDKRW':  'USDKRW=X',
     'SILVER':  'SI=F',    'COPPER':  'HG=F',
-    'NICKEL':  'NI=F',    'LITHIUM': 'LIT',
+    'NICKEL':  'JJN',       'LITHIUM': 'LIT',
     'URA':     'URA',
 }
 TICK_META = {
@@ -693,7 +693,9 @@ KR_RSS = [
     # ── 아시아경제
     ('https://www.asiae.co.kr/rss/economy.htm',     '아시아경제',  'tk'),
     # ── 이데일리
-    ('https://rss.edaily.co.kr/edaily/rss/newsflash.xml', '이데일리', 'tk'),
+    ('https://rss.etoday.co.kr/eto/market_news.xml',      '이투데이마켓', 'tk'),
+    ('https://rss.etoday.co.kr/eto/finance_news.xml',     '이투데이금융', 'tk'),
+    ('https://rss.etoday.co.kr/eto/economy_news.xml',     '이투데이경제', 'tk'),
     # ── 뉴스핌 (증권·금융·글로벌 수급 특화)
     ('http://rss.newspim.com/news/category/105',    '뉴스핌증권',  'tk'),  # 증권·금융
     ('http://rss.newspim.com/news/category/103',    '뉴스핌경제',  'tk'),  # 경제
