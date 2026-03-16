@@ -153,15 +153,16 @@ def fetch_kis_price(code, token):
     """KIS REST — 국내주식 현재가 조회 (TR: FHKST01010100)"""
     try:
         headers = {
-            'Content-Type':  'application/json',
-            'authorization': f'Bearer {token}',
-            'appkey':        KIS_APP_KEY,
-            'appsecret':     KIS_APP_SECRET,
-            'tr_id':         'FHKST01010100',
+            'Content-Type':   'application/json; charset=utf-8',
+            'authorization':  f'Bearer {token}',
+            'appkey':         KIS_APP_KEY,
+            'appsecret':      KIS_APP_SECRET,
+            'tr_id':          'FHKST01010100',
+            'custtype':       'P',
         }
         params = {
             'FID_COND_MRK_DIV_CODE': 'J',
-            'FID_INPUT_ISCD': code,
+            'FID_INPUT_ISCD':         code,
         }
         r = SESS.get(
             f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price',
@@ -173,7 +174,7 @@ def fetch_kis_price(code, token):
         j = r.json()
         rt = j.get('rt_cd', '')
         if rt != '0':
-            msg = j.get('msg1', '')[:40]
+            msg = j.get('msg1', '')[:50]
             print(f'    KIS 종목 {code} 오류: rt_cd={rt} {msg}')
             return None
         d = j.get('output', {})
@@ -562,7 +563,7 @@ BOK_SERIES = {
     'KR_RATE':  {'stat':'722Y001', 'item':'0101000', 'cycle':'D', 'name':'한국 기준금리',  'unit':'%'},
     'KR_CPI':   {'stat':'901Y009', 'item':'0',       'cycle':'M', 'name':'한국 CPI',      'unit':''},
     'KR_BOP':   {'stat':'301Y013', 'item':'',        'cycle':'M', 'name':'한국 국제수지',  'unit':'백만달러'},
-    'KR_M2':    {'stat':'101Y004', 'item':'',        'cycle':'M', 'name':'통화량 M2',     'unit':'십억원'},
+    'KR_M2':    {'stat':'101Y004', 'item':'BBIA00',  'cycle':'M', 'name':'통화량 M2',     'unit':'십억원'},
 }
 
 def fetch_bok(stat_code, item_code, cycle='M'):
@@ -679,7 +680,7 @@ KR_RSS = [
     ('https://www.yna.co.kr/rss/economy.xml',       '연합뉴스',    'tk'),
     ('https://rss.etnews.com/Section902.xml',       '전자신문',    'te'),
     ('https://www.asiae.co.kr/rss/economy.htm',     '아시아경제',  'tk'),
-    ('https://www.mt.co.kr/rss/economy.xml',        '머니투데이',  'tk'),  # 조선비즈 대체
+    ('https://biz.heraldcorp.com/RSS/Feed.asp?category=010',  '헤럴드경제',  'tk'),  # 경제
 ]
 
 # ── 국내 Google News: 경제·기업·정부정책 키워드
@@ -1066,17 +1067,41 @@ global_issues = []
 domestic_issues = []
 
 def parse_issues_json(text):
-    clean = re.sub(r'^```(?:json)?', '', text).rstrip('`').strip()
+    clean = re.sub(r'^```(?:json)?', '', text.strip()).rstrip('`').strip()
+    # [ ] 배열 추출
     s1, s2 = clean.find('['), clean.rfind(']')
-    if s1 >= 0 and s2 > s1: clean = clean[s1:s2+1]
-    try: return json.loads(clean)
+    if s1 >= 0 and s2 > s1:
+        clean = clean[s1:s2+1]
+    else:
+        # 배열 없으면 전체로 시도
+        pass
+    # 1차 파싱
+    try:
+        result = json.loads(clean)
+        if isinstance(result, list):
+            return [x for x in result if isinstance(x, dict) and x.get('title')]
     except:
-        # 마지막 완전한 객체까지 복구
-        lc = clean.rfind('},')
-        if lc > 0:
-            try: return json.loads(clean[:lc+1]+']')
-            except: pass
-        return []
+        pass
+    # 2차: 마지막 완전한 객체까지 복구
+    lc = clean.rfind('},')
+    if lc > 0:
+        try:
+            result = json.loads(clean[:lc+1]+']')
+            if isinstance(result, list):
+                return [x for x in result if isinstance(x, dict) and x.get('title')]
+        except:
+            pass
+    # 3차: 중간 잘린 마지막 객체 제거
+    lc2 = clean.rfind('{')
+    if lc2 > 0:
+        try:
+            result = json.loads(clean[:lc2].rstrip(',').rstrip() + ']')
+            if isinstance(result, list):
+                return [x for x in result if isinstance(x, dict) and x.get('title')]
+        except:
+            pass
+    print(f'  parse_issues_json 실패 (raw 앞 200자): {clean[:200]}')
+    return []
 
 
 def call_claude(model, system, user, max_tokens=3000):
