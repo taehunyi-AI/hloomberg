@@ -536,31 +536,57 @@ BOK_KEY = os.environ.get('BOK_API_KEY', '')
 bok_data = {}
 
 BOK_SERIES = {
-    'KR_RATE':  {'stat':'722Y001', 'item':'0101000',  'name':'한국 기준금리',  'unit':'%'},
-    'KR_CPI':   {'stat':'901Y009', 'item':'0',        'name':'한국 CPI',      'unit':'%'},
-    'KR_GDP':   {'stat':'200Y002', 'item':'2',        'name':'한국 GDP성장률', 'unit':'%'},
-    'KR_TRADE': {'stat':'403Y003', 'item':'*AA',      'name':'한국 무역수지',  'unit':'억달러'},
-    'KR_M2':    {'stat':'101Y004', 'item':'BBHA00',   'name':'통화량(M2)',     'unit':'조원'},
+    # cycle D=일별, M=월별, Q=분기별
+    'KR_RATE':  {'stat':'722Y001', 'item':'0101000', 'cycle':'D', 'name':'한국 기준금리',  'unit':'%'},
+    'KR_CPI':   {'stat':'901Y009', 'item':'0',       'cycle':'M', 'name':'한국 CPI',      'unit':''},
+    'KR_BOP':   {'stat':'301Y013', 'item':'',        'cycle':'M', 'name':'한국 국제수지',  'unit':'백만달러'},
+    'KR_M2':    {'stat':'101Y004', 'item':'BBSA00',  'cycle':'M', 'name':'통화량 M2',     'unit':'십억원'},
+    # KR_GDP: ECOS GDP 통계표코드 미확인 — 추후 추가
 }
 
-def fetch_bok(stat_code, item_code):
-    if not BOK_KEY: return None
+def fetch_bok(stat_code, item_code, cycle='M'):
+    if not BOK_KEY:
+        return None
     try:
-        end = NOW.strftime('%Y%m')
-        start = (NOW - timedelta(days=90)).strftime('%Y%m')
-        url = (f'https://ecos.bok.or.kr/api/StatisticSearch/{BOK_KEY}/json/kr/1/5/'
-               f'{stat_code}/MM/{start}/{end}/{item_code}')
-        r = SESS.get(url, timeout=8)
+        if cycle == 'D':
+            end   = NOW.strftime('%Y%m%d')
+            start = (NOW - timedelta(days=30)).strftime('%Y%m%d')
+        elif cycle == 'Q':
+            end   = f"{NOW.year}Q{(NOW.month-1)//3+1}"
+            start = f"{NOW.year-2}Q1"
+        else:  # M
+            end   = NOW.strftime('%Y%m')
+            start = (NOW - timedelta(days=180)).strftime('%Y%m')
+        url = (f'https://ecos.bok.or.kr/api/StatisticSearch/{BOK_KEY}/json/kr/1/10/'
+               f'{stat_code}/{cycle}/{start}/{end}'
+               + (f'/{item_code}' if item_code else ''))
+        r = SESS.get(url, timeout=10)
         if not r.ok: return None
-        rows = r.json().get('StatisticSearch', {}).get('row', [])
+        data = r.json()
+        if 'RESULT' in data:
+            code = data['RESULT'].get('CODE','')
+            print(f'  BOK API 오류 [{stat_code}]: {code} — {data["RESULT"].get("MESSAGE","")[:50]}')
+            return None
+        rows = data.get('StatisticSearch', {}).get('row', [])
         vals = [(row['TIME'], float(row['DATA_VALUE'])) for row in rows if row.get('DATA_VALUE')]
         return sorted(vals, reverse=True) if vals else None
-    except: return None
+    except Exception as e:
+        err = str(e)
+        if '403' in err or 'Proxy' in err or 'proxy' in err:
+            return 'BLOCKED'
+        return None
 
 print('\n[BOK] 한국 경제지표 수집...')
+bok_blocked = False
 for key, meta in BOK_SERIES.items():
-    vals = fetch_bok(meta['stat'], meta['item'])
-    if vals:
+    if bok_blocked:
+        print(f'  SKIP {key} (네트워크 차단)')
+        continue
+    vals = fetch_bok(meta['stat'], meta['item'], meta.get('cycle','M'))
+    if vals == 'BLOCKED':
+        bok_blocked = True
+        print(f'  SKIP {key} (ecos.bok.or.kr 네트워크 차단 — GitHub Actions IP 제한)')
+    elif vals:
         latest = vals[0]
         prev   = vals[1] if len(vals) > 1 else None
         chg    = round(latest[1] - prev[1], 2) if prev else 0
@@ -571,7 +597,7 @@ for key, meta in BOK_SERIES.items():
         }
         print(f'  OK  {key}: {latest[1]}{meta["unit"]} ({latest[0]})')
     else:
-        print(f'  SKIP {key} (키 없음)')
+        print(f'  SKIP {key} (데이터 없음)')
     time.sleep(0.1)
 
 # ─────────────────────────────────────────
@@ -632,7 +658,7 @@ KR_RSS = [
     ('https://www.yna.co.kr/rss/economy.xml',       '연합뉴스',    'tk'),
     ('https://rss.etnews.com/Section902.xml',       '전자신문',    'te'),
     ('https://www.asiae.co.kr/rss/economy.htm',     '아시아경제',  'tk'),
-    ('https://biz.chosun.com/site/data/rss/rss.xml','조선비즈',    'tk'),
+    ('https://biz.chosun.com/rss/news.xml',         '조선비즈',    'tk'),  # 수정: rss.xml → news.xml
 ]
 
 # ── 국내 Google News: 경제·기업·정부정책 키워드
@@ -659,7 +685,7 @@ GL_RSS = [
     ('https://feeds.bloomberg.com/markets/news.rss',                                        'Bloomberg',   '글로벌','te'),
     ('https://feeds.bbci.co.uk/news/business/rss.xml',                                      'BBC Business','유럽',  'te'),
     ('https://feeds.bbci.co.uk/news/world/rss.xml',                                         'BBC World',   '국제',  'te'),
-    ('https://rss.ft.com/rss/2.0/world',                                                    'FT World',    '유럽',  'te'),
+    ('https://www.ft.com/rss/home',                                                         'FT',          '유럽',  'te'),  # 수정
     ('https://www.aljazeera.com/xml/rss/all.xml',                                           'Al Jazeera',  '중동',  'tw'),
     ('https://www.middleeasteye.net/rss',                                                   'ME Eye',      '중동',  'tw'),
     ('https://www.timesofisrael.com/feed/',                                                 'ToI',         '중동',  'tw'),
@@ -1220,10 +1246,21 @@ if ANTHROPIC_KEY:
     swing_quick = {}
     try:
         print('  [5/4+] 스윙종목 빠른 업데이트...')
-        swing_names = [s['name'] for s in STOCK_LIST]
+        # STOCK_LIST는 STOCK_MODE 블록 아래 정의됨 → 직접 정의
+        _swing_stocks = [
+            {'name':'삼성전자',  'th':'반도체', 'mkt':'KOSPI', 'act':'분할매수', 'desc':'이란전쟁 무관. 원화 하락 수출 수혜.'},
+            {'name':'SK하이닉스','th':'반도체', 'mkt':'KOSPI', 'act':'분할매수', 'desc':'AI 메모리 수요 견고.'},
+            {'name':'삼성바이오', 'th':'제약',   'mkt':'KOSPI', 'act':'관심',    'desc':'지정학 무관 방어주.'},
+            {'name':'한화에어로', 'th':'방산',   'mkt':'KOSPI', 'act':'보유',    'desc':'중동 수주 기대.'},
+            {'name':'LIG넥스원',  'th':'방산',   'mkt':'KOSPI', 'act':'보유',    'desc':'천궁-II 수출.'},
+            {'name':'한국전력',   'th':'역발상', 'mkt':'KOSPI', 'act':'관심',    'desc':'유가 하락시 이중 수혜.'},
+            {'name':'S-Oil',      'th':'에너지', 'mkt':'KOSPI', 'act':'주의',    'desc':'WTI 급락 위험.'},
+            {'name':'한국카본',   'th':'LNG소재','mkt':'KOSDAQ','act':'관심',    'desc':'LNG선 단열재 1위.'},
+            {'name':'한국가스공사','th':'에너지','mkt':'KOSPI', 'act':'관심',    'desc':'EIA 연말 $70시 원가 하락.'},
+        ]
         swing_prompt = '\n'.join([
             f"{s['name']}({s['th']}/{s['mkt']}): {s['act']} — {s['desc']}"
-            for s in STOCK_LIST
+            for s in _swing_stocks
         ])
         swing_resp = call_claude(
             'claude-haiku-4-5-20251001',
