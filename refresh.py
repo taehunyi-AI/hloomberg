@@ -1749,6 +1749,7 @@ html = patch(html, '// ##SWING_QUICK_S##', '// ##SWING_QUICK_E##',
     f'\nconst SWING_QUICK={json.dumps(swing_quick if "swing_quick" in dir() else {}, ensure_ascii=False)};\n')
 
 # ─────────────────────────────────────────
+# ─────────────────────────────────────────
 # Telegram 알림
 # ─────────────────────────────────────────
 TG_BOT  = os.environ.get('TELEGRAM_BOT_TOKEN','')
@@ -1763,6 +1764,8 @@ def tg_send(msg):
 
 if TG_BOT:
     tg_alerts = []
+
+    # ── 조건 알림 (기존)
     for k, meta in TICK_META.items():
         d = PRICE_DATA.get(k)
         if not d: continue
@@ -1777,11 +1780,67 @@ if TG_BOT:
     if brent_p > 110: tg_alerts.append(f"🛢 BRENT <b>${brent_p:.1f}</b> — $110 돌파")
     elif brent_p and brent_p < 70: tg_alerts.append(f"🛢 BRENT <b>${brent_p:.1f}</b> — $70 하회")
     if tg_alerts:
-        msg = f"📊 <b>HLOOMBERG</b> [{TS}]\n\n" + '\n'.join(tg_alerts[:5])
+        msg = f"📊 <b>HLOOMBERG 긴급알림</b> [{TS}]\n\n" + '\n'.join(tg_alerts[:5])
         tg_send(msg)
-        print(f'\n[Telegram] {len(tg_alerts)}건 발송')
+        print(f'\n[Telegram] 조건알림 {len(tg_alerts)}건 발송')
+
+    # ── 1시간마다 정기 요약 (매 정각 후 5분 이내 or 수동 실행 시)
+    import os as _os
+    is_manual   = _os.environ.get('GITHUB_EVENT_NAME','') == 'workflow_dispatch'
+    is_hourly   = NOW.minute < 6   # :00~:05 → 1시간 주기
+    if is_hourly or is_manual:
+        lines = []
+
+        # 1. 주요 시세
+        def tk(k):
+            d = PRICE_DATA.get(k, {})
+            if not d: return ''
+            p = fmt_price(d['p'], k)
+            c = d['c']
+            m = TICK_META.get(k, {})
+            arr = '▲' if c >= 0 else '▼'
+            return f"{m.get('l',k)} {m.get('u','')}{p} {arr}{abs(c):.2f}%"
+
+        lines.append('📈 <b>시세</b>')
+        for k in ['KOSPI','KOSDAQ','BRENT','USDKRW']:
+            s = tk(k)
+            if s: lines.append(f"  {s}")
+
+        # 2. 이슈 상위 3개
+        top_issues = sorted(
+            global_issues + domestic_issues,
+            key=lambda x: {'상':3,'중':2,'하':1}.get(x.get('impact','하'),0),
+            reverse=True
+        )[:3]
+        if top_issues:
+            lines.append('\n⚡ <b>핵심 이슈</b>')
+            for iss in top_issues:
+                imp = iss.get('impact','')
+                imp_icon = '🔴' if imp=='상' else '🟡' if imp=='중' else '🟢'
+                lines.append(f"  {imp_icon} {iss['title'][:45]}")
+
+        # 3. 스윙종목 빠른 신호
+        if swing_quick:
+            lines.append('\n🎯 <b>스윙 신호</b>')
+            for name, sq in list(swing_quick.items())[:5]:
+                sig = sq.get('signal','')
+                sig_icon = '🟢 매수' if sig=='매수' else '🔴 매도' if sig=='매도' else '⚪ 관망'
+                lines.append(f"  {sig_icon} {name}")
+
+        # 4. 뉴스 헤드라인 상위 3건
+        if kr_news:
+            lines.append('\n📰 <b>주요 뉴스</b>')
+            for n in kr_news[:3]:
+                lines.append(f"  • {n['title'][:40]}")
+
+        lines.append(f'\n🔗 <a href="https://taehunyi-ai.github.io/hloomberg/hloomberg.html">HLOOMBERG 터미널</a>')
+
+        summary_msg = f"📊 <b>HLOOMBERG 정기요약</b> [{TS}]\n\n" + '\n'.join(lines)
+        tg_send(summary_msg)
+        print(f'\n[Telegram] 정기요약 발송 ({NOW.hour:02d}:{NOW.minute:02d} KST)')
     else:
-        print('\n[Telegram] 알림 조건 없음')
+        if not tg_alerts:
+            print('\n[Telegram] 알림 조건 없음 (정기요약 대기중)')
 else:
     print('\n[Telegram] TELEGRAM_BOT_TOKEN 미설정 — 스킵')
 
