@@ -44,7 +44,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Restore KIS token cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/kis_token.json
           key: kis-token-${{ github.repository }}
@@ -67,7 +67,7 @@ jobs:
         run: python refresh.py
 
       - name: Save KIS token cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: always()
         with:
           path: /tmp/kis_token.json
