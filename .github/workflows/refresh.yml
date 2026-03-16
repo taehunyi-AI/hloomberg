@@ -47,7 +47,9 @@ jobs:
         id: kis-cache
         uses: actions/cache@v5
         with:
-          path: /tmp/kis_token.json
+          path: |
+            /tmp/kis_token.json
+            /tmp/tg_alert_cache.json
           key: kis-token-${{ github.repository }}
           restore-keys: kis-token-
 
@@ -72,7 +74,9 @@ jobs:
         uses: actions/cache/save@v5
         if: always() && steps.kis-cache.outputs.cache-hit != 'true'
         with:
-          path: /tmp/kis_token.json
+          path: |
+            /tmp/kis_token.json
+            /tmp/tg_alert_cache.json
           key: kis-token-${{ github.repository }}
       - name: Commit & Push
         run: |
