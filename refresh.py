@@ -218,6 +218,7 @@ def fetch_kis_index(market_code, token):
 
 # KIS 시세 데이터 (종목코드 → price dict)
 kis_stock_data = {}
+PRICE_DATA = {}   # ← Yahoo 수집 전 KIS가 먼저 채움
 
 kis_token = None
 if KIS_APP_KEY and KIS_APP_SECRET:
@@ -338,8 +339,11 @@ def get_price(key, sym):
     return None
 
 print(f'\n[시세] {len(TICKERS)}개 수집...')
-PRICE_DATA = {}
+# KIS가 이미 수집한 지수(KOSPI/KOSDAQ)는 Yahoo로 덮어쓰지 않음
 for name, sym in TICKERS.items():
+    if name in PRICE_DATA:   # KIS 데이터 있으면 스킵
+        print(f"  SKIP {name:<10} (KIS 수집 완료)")
+        continue
     res = get_price(name, sym)
     if res:
         PRICE_DATA[name] = res
