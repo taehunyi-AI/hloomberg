@@ -254,11 +254,33 @@ if kis_token:
             print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
         time.sleep(0.05)
     print(f'  KIS 완료: 지수 + {len(kis_stock_data)}개 종목')
+
+    # ── 1순위: 외국인/기관 순매수 TOP10
+    print('[KIS 수급] 외국인/기관 순매수 수집...')
+    foreign_buy  = fetch_foreign_institution(kis_token, '0001', '1')   # 코스피 외국인
+    institution_buy = fetch_foreign_institution(kis_token, '0001', '2') # 코스피 기관
+    foreign_sell = fetch_foreign_institution(kis_token, '0001', '1')   # (순매도는 같은 API, sort 방향만 다름)
+    print(f'  외국인 순매수: {len(foreign_buy)}개 / 기관 순매수: {len(institution_buy)}개')
+    time.sleep(0.3)
+
+    # ── 2순위: 등락률 상위
+    print('[KIS 순위] 등락률 상위 수집...')
+    fluctuation_rank = fetch_fluctuation_rank(kis_token)
+    print(f'  등락률 상위: {len(fluctuation_rank)}개')
+    time.sleep(0.3)
+
+    # ── 3순위: 거래량 상위
+    print('[KIS 순위] 거래량 상위 수집...')
+    volume_rank_data = fetch_volume_rank(kis_token)
+    print(f'  거래량 상위: {len(volume_rank_data)}개')
+    time.sleep(0.3)
+
 else:
     if KIS_APP_KEY:
         print('[KIS] 토큰 발급 실패 — Yahoo fallback')
     else:
         print('[KIS] KIS_APP_KEY 미설정 — Yahoo fallback')
+    foreign_buy = []; institution_buy = []; fluctuation_rank = []; volume_rank_data = []
 
 TICKERS = {
     'KOSPI':   '^KS11',   'KOSDAQ':  '^KQ11',
@@ -288,6 +310,210 @@ TICK_META = {
     'LITHIUM': {'l':'LITHIUM',  'u':'$', 'dp':2},
     'URA':     {'l':'URANIUM',  'u':'$', 'dp':2},
 }
+
+
+def kis_get(url_path, tr_id, params, token):
+    """KIS REST GET 공통 헬퍼"""
+    try:
+        headers = {
+            'Content-Type':  'application/json; charset=utf-8',
+            'authorization': f'Bearer {token}',
+            'appkey':        KIS_APP_KEY,
+            'appsecret':     KIS_APP_SECRET,
+            'tr_id':         tr_id,
+            'custtype':      'P',
+        }
+        r = SESS.get(f'{KIS_BASE_URL}{url_path}', headers=headers, params=params, timeout=8)
+        if not r.ok: return None
+        j = r.json()
+        if j.get('rt_cd') != '0': return None
+        return j
+    except: return None
+
+def fetch_foreign_institution(token, mkt='0001', cls='1'):
+    """1순위: 외국인/기관 순매수 TOP10
+    cls: 1=외국인, 2=기관계, 0=전체
+    mkt: 0001=코스피, 1001=코스닥
+    """
+    j = kis_get(
+        '/uapi/domestic-stock/v1/quotations/foreign-institution-total',
+        'FHPTJ04400000',
+        {'FID_COND_MRKT_DIV_CODE':'V','FID_COND_SCR_DIV_CODE':'16449',
+         'FID_INPUT_ISCD':mkt,'FID_DIV_CLS_CODE':'0',
+         'FID_RANK_SORT_CLS_CODE':'0','FID_ETC_CLS_CODE':cls},
+        token
+    )
+    if not j: return []
+    result = []
+    for item in j.get('output', [])[:10]:
+        try:
+            result.append({
+                'name': item.get('hts_kor_isnm','').strip(),
+                'code': item.get('mksc_shrn_iscd','').strip(),
+                'net':  int(item.get('ntby_qty','0').replace(',','') or 0),
+                'net_amt': int(item.get('ntby_tr_pbmn','0').replace(',','') or 0),
+            })
+        except: pass
+    return [x for x in result if x['name']]
+
+def fetch_fluctuation_rank(token, sort='0'):
+    """2순위: 등락률 상위 TOP20
+    sort: 0=등락률 내림차순(상승), 1=오름차순(하락)
+    """
+    j = kis_get(
+        '/uapi/domestic-stock/v1/ranking/fluctuation',
+        'FHPST01700000',
+        {'FID_COND_MRKT_DIV_CODE':'J','FID_COND_SCR_DIV_CODE':'20170',
+         'FID_INPUT_ISCD':'0000','FID_RANK_SORT_CLS_CODE':'0000',
+         'FID_INPUT_CNT_1':'20','FID_PRC_CLS_CODE':'0',
+         'FID_INPUT_PRICE_1':'1000','FID_INPUT_PRICE_2':'1000000',
+         'FID_VOL_CNT':'50000','FID_TRGT_CLS_CODE':'0',
+         'FID_TRGT_EXLS_CLS_CODE':'0','FID_DIV_CLS_CODE':'0',
+         'FID_RSFL_RATE1':'1','FID_RSFL_RATE2':'30'},
+        token
+    )
+    if not j: return []
+    result = []
+    for item in j.get('output', []):
+        try:
+            result.append({
+                'name': item.get('hts_kor_isnm','').strip(),
+                'code': item.get('stck_shrn_iscd','').strip(),
+                'rate': float(item.get('prdy_ctrt','0') or 0),
+                'price': int(item.get('stck_prpr','0').replace(',','') or 0),
+                'vol':  int(item.get('acml_vol','0').replace(',','') or 0),
+            })
+        except: pass
+    return [x for x in result if x['name'] and x['code']]
+
+def fetch_volume_rank(token):
+    """3순위: 거래량 상위 TOP20"""
+    j = kis_get(
+        '/uapi/domestic-stock/v1/quotations/volume-rank',
+        'FHPST01710000',
+        {'FID_COND_MRKT_DIV_CODE':'J','FID_COND_SCR_DIV_CODE':'20171',
+         'FID_INPUT_ISCD':'0000','FID_DIV_CLS_CODE':'0',
+         'FID_BLNG_CLS_CODE':'0','FID_TRGT_CLS_CODE':'111111111',
+         'FID_TRGT_EXLS_CLS_CODE':'0000000000',
+         'FID_INPUT_PRICE_1':'1000','FID_INPUT_PRICE_2':'1000000',
+         'FID_VOL_CNT':'50000','FID_INPUT_DATE_1':''},
+        token
+    )
+    if not j: return []
+    result = []
+    for item in j.get('output', [])[:20]:
+        try:
+            result.append({
+                'name': item.get('hts_kor_isnm','').strip(),
+                'code': item.get('mksc_shrn_iscd','').strip(),
+                'vol':  int(item.get('acml_vol','0').replace(',','') or 0),
+                'rate': float(item.get('prdy_ctrt','0') or 0),
+                'price': int(item.get('stck_prpr','0').replace(',','') or 0),
+            })
+        except: pass
+    return [x for x in result if x['name']]
+
+def fetch_kis_ohlcv(code, token, days=90):
+    """4순위: KIS 국내주식 기간별시세 (일봉 OHLCV)"""
+    from datetime import datetime, timedelta
+    end   = datetime.now().strftime('%Y%m%d')
+    start = (datetime.now() - timedelta(days=days+30)).strftime('%Y%m%d')
+    j = kis_get(
+        '/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice',
+        'FHKST03010100',
+        {'FID_COND_MRKT_DIV_CODE':'J','FID_INPUT_ISCD':code,
+         'FID_INPUT_DATE_1':start,'FID_INPUT_DATE_2':end,
+         'FID_PERIOD_DIV_CODE':'D','FID_ORG_ADJ_PRC':'0'},
+        token
+    )
+    if not j: return None
+    rows = j.get('output2', [])
+    if not rows: return None
+    ohlcv = []
+    for item in reversed(rows):
+        try:
+            c = int(item.get('stck_clpr','0') or 0)
+            if c <= 0: continue
+            ohlcv.append({
+                'd': item.get('stck_bsop_date','')[:4][2:] + '/' + item.get('stck_bsop_date','')[4:6] + '/' + item.get('stck_bsop_date','')[6:],
+                'o': int(item.get('stck_oprc','0') or 0),
+                'h': int(item.get('stck_hgpr','0') or 0),
+                'l': int(item.get('stck_lwpr','0') or 0),
+                'c': c,
+                'v': int(item.get('acml_vol','0').replace(',','') or 0),
+            })
+        except: pass
+    if len(ohlcv) < 10: return None
+    # 기술지표 계산 (기존 fetch_ohlcv 로직 재사용)
+    cl = [x['c'] for x in ohlcv]
+    def ma(arr, n):
+        return [round(sum(arr[max(0,i-n+1):i+1])/min(i+1,n)) if i>=n-1 else None for i in range(len(arr))]
+    ma5=ma(cl,5); ma20=ma(cl,20); ma60=ma(cl,60)
+    rsi_arr=[None]*14
+    if len(cl)>14:
+        g=l2=0
+        for i in range(1,15): d=cl[i]-cl[i-1]; g+=max(d,0); l2+=max(-d,0)
+        ag,al=g/14,l2/14
+        rsi_arr.append(round(100-100/(1+ag/al),1) if al>0 else 100)
+        for i in range(15,len(cl)):
+            d=cl[i]-cl[i-1]; ag=(ag*13+max(d,0))/14; al=(al*13+max(-d,0))/14
+            rsi_arr.append(round(100-100/(1+ag/al),1) if al>0 else 100)
+    bbu=[]; bbl=[]
+    for i in range(len(cl)):
+        if i<19: bbu.append(None); bbl.append(None)
+        else:
+            seg=cl[i-19:i+1]; m=sum(seg)/20; std=(sum((x-m)**2 for x in seg)/20)**0.5
+            bbu.append(round(m+2*std)); bbl.append(round(m-2*std))
+    for i,bar in enumerate(ohlcv):
+        bar['ma5']=ma5[i]; bar['ma20']=ma20[i]; bar['ma60']=ma60[i]
+        bar['rsi']=rsi_arr[i] if i<len(rsi_arr) else None
+        bar['bbu']=bbu[i]; bar['bbl']=bbl[i]
+    return ohlcv[-days:]
+
+def fetch_investor_by_stock(code, token):
+    """5순위: 종목별 외국인/기관 투자자 동향"""
+    j = kis_get(
+        '/uapi/domestic-stock/v1/quotations/inquire-investor',
+        'FHKST01010900',
+        {'FID_COND_MRKT_DIV_CODE':'J','FID_INPUT_ISCD':code},
+        token
+    )
+    if not j: return {}
+    d = {}
+    for item in j.get('output', []):
+        tp = item.get('invst_nm','').strip()
+        if tp in ('외국인','기관합계','개인'):
+            try:
+                d[tp] = {
+                    'net': int(item.get('ntby_qty','0').replace(',','') or 0),
+                    'buy': int(item.get('seln_vol','0').replace(',','') or 0),
+                    'sell': int(item.get('shnu_vol','0').replace(',','') or 0),
+                }
+            except: pass
+    return d
+
+def fetch_finance_ratio(code, token):
+    """6순위: 재무비율 (PER/PBR/ROE/EPS 등)"""
+    j = kis_get(
+        '/uapi/domestic-stock/v1/finance/financial-ratio',
+        'FHKST66430300',
+        {'FID_DIV_CLS_CODE':'0','bstp_cls_code':code,'FID_INPUT_ISCD':code},
+        token
+    )
+    if not j: return {}
+    rows = j.get('output', [])
+    if not rows: return {}
+    r = rows[0]
+    try:
+        return {
+            'per':  r.get('per',''),
+            'pbr':  r.get('pbr',''),
+            'roe':  r.get('roe',''),
+            'eps':  r.get('eps',''),
+            'bps':  r.get('bps',''),
+            'dps':  r.get('dps',''),
+        }
+    except: return {}
 
 def fetch_yahoo(sym):
     for q in ('query1', 'query2'):
@@ -409,6 +635,18 @@ def make_stocks_js(top10):
     lines.append('];')
     return '\n' + '\n'.join(lines) + '\n'
 
+def make_supply_demand_js(foreign_buy, institution_buy, fluctuation_rank, volume_rank_data):
+    """수급/순위 데이터 → JS"""
+    def fmt_list(lst, max_n=10):
+        return json.dumps(lst[:max_n], ensure_ascii=False)
+    lines = [
+        f'const KIS_FOREIGN_BUY={fmt_list(foreign_buy)};',
+        f'const KIS_INSTITUTION_BUY={fmt_list(institution_buy)};',
+        f'const KIS_FLUCTUATION={fmt_list(fluctuation_rank)};',
+        f'const KIS_VOLUME_RANK={fmt_list(volume_rank_data)};',
+    ]
+    return '\n' + '\n'.join(lines) + '\n'
+
 # 원자재 90일 차트 데이터 수집
 CMDTY_CHART_SYMS = {
     'BRENT': 'BZ=F', 'WTI': 'CL=F', 'GOLD': 'GC=F',
@@ -509,12 +747,21 @@ def fetch_ohlcv(sym, days=90):
 
 print('\n[종목차트] OHLCV + 기술지표 수집...')
 for name, ticker in STOCK_TICKERS.items():
-    data = fetch_ohlcv(ticker, 90)
+    data = None
+    # 4순위: KIS 우선, fallback Yahoo
+    code = ticker.split('.')[0]
+    if kis_token:
+        data = fetch_kis_ohlcv(code, kis_token, 90)
+        if data:
+            print(f'  OK  {name}: {len(data)}일  [KIS]')
+    if not data:
+        data = fetch_ohlcv(ticker, 90)
+        if data:
+            print(f'  OK  {name}: {len(data)}일  [Yahoo]')
+        else:
+            print(f'  FAIL {name}')
     if data:
         stock_charts[name] = data
-        print(f'  OK  {name}: {len(data)}일')
-    else:
-        print(f'  FAIL {name}')
     time.sleep(0.15)
 
 # ─────────────────────────────────────────
@@ -1556,13 +1803,30 @@ if swing_top10:
                     kis_stock_data[code] = r
                     print(f'  KIS 추가수집 {code}: {int(r["p"]):,}원')
                 time.sleep(0.05)
+        # 5순위: 종목별 외국인/기관 투자자 동향 수집
+        investor_data = {}
+        for s in swing_top10[:5]:   # 상위 5개만 (API 호출 제한)
+            code = s.get('code','')
+            if code:
+                inv = fetch_investor_by_stock(code, kis_token)
+                if inv:
+                    investor_data[code] = inv
+                time.sleep(0.1)
+        print(f'  투자자동향: {len(investor_data)}개 종목')
         # KIS_PRICES 재패치 (TOP10 코드 포함)
         html = patch(html, '// ##KIS_PRICES_S##', '// ##KIS_PRICES_E##', make_kis_prices_js(kis_stock_data))
+    else:
+        investor_data = {}
     html = patch(html, '// ##STOCKS_S##', '// ##STOCKS_E##', make_stocks_js(swing_top10))
     print(f'  STOCKS: AI TOP{len(swing_top10)} 패치 완료')
 else:
     print(f'  STOCKS: AI 선정 실패 → 기존 유지')
 print(f'  TICKS: {len(PRICE_DATA)}개')
+
+# ── 수급/순위 JS 패치 (1,2,3순위)
+html = patch(html, '// ##SUPPLY_DEMAND_S##', '// ##SUPPLY_DEMAND_E##',
+             make_supply_demand_js(foreign_buy, institution_buy, fluctuation_rank, volume_rank_data))
+print(f'  수급: 외국인{len(foreign_buy)} 기관{len(institution_buy)} 등락률{len(fluctuation_rank)} 거래량{len(volume_rank_data)}')
 
 # ── 국내뉴스 HTML (리스트 렌더)
 def news_list_html(items, id_prefix, onclick_fn):
@@ -1730,16 +1994,38 @@ if STOCK_MODE and ANTHROPIC_KEY:
     price_str = ' | '.join([f"{k}:{fmt_price(v['p'],k)}({'+' if v['c']>=0 else ''}{v['c']:.2f}%)" for k,v in PRICE_DATA.items()])
     for s in STOCK_LIST:
         try:
+            # 6순위: 재무비율 KIS에서 실수치 조회
+            fin_str = ''
+            if kis_token:
+                fin = fetch_finance_ratio(s.get('code', ''), kis_token)
+                if fin:
+                    fin_str = (f"\n[재무비율 (KIS 실데이터)]\n"
+                               f"PER: {fin.get('per','-')}배  PBR: {fin.get('pbr','-')}배  "
+                               f"ROE: {fin.get('roe','-')}%  EPS: {fin.get('eps','-')}원  "
+                               f"BPS: {fin.get('bps','-')}원  DPS: {fin.get('dps','-')}원\n")
+                time.sleep(0.1)
+            # 투자자 동향 문자열
+            inv_str = ''
+            code = s.get('code','')
+            if code and investor_data.get(code):
+                inv = investor_data[code]
+                parts = []
+                for k,v in inv.items():
+                    net = v.get('net',0)
+                    arrow = '▲' if net > 0 else '▼'
+                    parts.append(f"{k} {arrow}{abs(net):,}주")
+                inv_str = f"\n[오늘 투자자 동향] {' | '.join(parts)}\n"
             t = call_claude(
                 'claude-sonnet-4-20250514',
                 '한국주식 전문 애널리스트. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 구체적 수치와 가격 레벨 명시.',
-                f"[현재시세]\n{price_str}\n\n"
+                f"[현재시세]\n{price_str}\n"
+                f"{fin_str}{inv_str}\n"
                 f"종목: {s['name']}({s['th']}/{s['mkt']})\n"
                 f"투자의견: {s['act']}\n현황: {s['desc']}\n\n"
                 f"아래 7개 항목을 각각 구체적 수치와 함께 분석:\n\n"
                 f"1. 펀더멘털\n"
                 f"   - 최근 실적 (매출/영업이익 YoY)\n"
-                f"   - PER/PBR/ROE 밸류에이션\n"
+                f"   - PER/PBR/ROE 밸류에이션 (위 KIS 실데이터 기준으로 분석)\n"
                 f"   - 배당수익률\n\n"
                 f"2. 기술적분석\n"
                 f"   - 현재 추세 (상승/하락/횡보)\n"
