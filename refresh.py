@@ -268,7 +268,7 @@ TICKERS = {
     'VIX':     '^VIX',    'UST10':   '^TNX',
     'USDKRW':  'USDKRW=X',
     'SILVER':  'SI=F',    'COPPER':  'HG=F',
-    'NICKEL':  'JJN',       'LITHIUM': 'LIT',
+    'LITHIUM': 'LIT',
     'URA':     'URA',
 }
 TICK_META = {
@@ -285,7 +285,6 @@ TICK_META = {
     'USDKRW':  {'l':'USD/KRW',  'u':'',  'dp':2},
     'SILVER':  {'l':'SILVER',   'u':'$', 'dp':2},
     'COPPER':  {'l':'COPPER',   'u':'$', 'dp':3},
-    'NICKEL':  {'l':'NICKEL',   'u':'$', 'dp':2},
     'LITHIUM': {'l':'LITHIUM',  'u':'$', 'dp':2},
     'URA':     {'l':'URANIUM',  'u':'$', 'dp':2},
 }
@@ -509,7 +508,7 @@ FRED_SERIES = {
     'CPI_YOY':   {'id':'CPIAUCSL',        'name':'미국 CPI(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
     'UNRATE':    {'id':'UNRATE',          'name':'미국 실업률',     'unit':'%',  'yoy':False},
     'GDP_QOQ':   {'id':'A191RL1Q225SBEA', 'name':'미국 GDP(QoQ)',  'unit':'%',  'yoy':False},  # 이미 성장률
-    'US_PMI':    {'id':'NAPM',            'name':'미국 PMI',       'unit':'',   'yoy':False},
+    'US_PMI':    {'id':'ISMMAN',          'name':'미국 PMI',       'unit':'',   'yoy':False},
     'US10Y':     {'id':'DGS10',           'name':'미국 10Y 국채',  'unit':'%',  'yoy':False},
     'DXY':       {'id':'DTWEXBGS',        'name':'달러인덱스',      'unit':'',   'yoy':False},
     'PCE':       {'id':'PCEPI',           'name':'미국 PCE(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
@@ -1274,7 +1273,6 @@ if ANTHROPIC_KEY:
         ('GOLD',    '금(COMEX)',          '안전자산 수요·실질금리·달러·중앙은행 매입 관점 분석'),
         ('SILVER',  '은(COMEX)',          '금/은 비율·산업수요(태양광)·투자수요 분석'),
         ('COPPER',  '구리(COMEX)',        'AI 데이터센터·EV·중국경기·공급부족 관점 분석'),
-        ('NICKEL',  '니켈(LME)',          'EV 배터리·인도네시아 공급·고려아연 영향 분석'),
         ('LITHIUM', '리튬',               'EV 수요 둔화·중국 과잉공급·포스코퓨처엠 영향 분석'),
         ('URA',     '우라늄(URA ETF)',    'SMR·원전 르네상스·두산에너빌리티·공급제약 분석'),
     ]
