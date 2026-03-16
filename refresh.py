@@ -1840,13 +1840,14 @@ html = patch(html, '// ##SWING_QUICK_S##', '// ##SWING_QUICK_E##',
 # ─────────────────────────────────────────
 TG_BOT  = os.environ.get('TELEGRAM_BOT_TOKEN','')
 TG_CHAT = os.environ.get('TELEGRAM_CHAT_ID','')
+TG_CACHE_FILE = '/tmp/tg_alert_cache.json'   # 이전 알림 캐시
 
 def tg_send(msg):
     if not TG_BOT or not TG_CHAT:
         print('  [TG] 토큰/ChatID 미설정')
         return
     try:
-        chat_id = int(TG_CHAT)   # 그룹 음수 ID는 int 필요
+        chat_id = int(TG_CHAT)
         r = requests.post(
             f'https://api.telegram.org/bot{TG_BOT}/sendMessage',
             json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'},
@@ -1860,27 +1861,74 @@ def tg_send(msg):
     except Exception as e:
         print(f'  [TG] 예외: {e}')
 
-if TG_BOT:
-    tg_alerts = []
+def load_tg_cache():
+    try:
+        with open(TG_CACHE_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {'sent_keys': [], 'ts': ''}
 
-    # ── 조건 알림 (기존)
+def save_tg_cache(cache):
+    try:
+        with open(TG_CACHE_FILE, 'w') as f:
+            json.dump(cache, f)
+    except:
+        pass
+
+if TG_BOT:
+    # ── 이전 알림 캐시 로드
+    tg_cache = load_tg_cache()
+    prev_sent = set(tg_cache.get('sent_keys', []))
+
+    tg_alerts = []      # 전송할 새 알림
+    tg_all_keys = []    # 이번 실행에서 감지된 모든 키
+
+    # ── 조건 알림 — 이전과 다른 것만
     for k, meta in TICK_META.items():
         d = PRICE_DATA.get(k)
         if not d: continue
         c = d['c']
         if abs(c) >= 3.0:
             sym = '🟢 급등' if c>=0 else '🔴 급락'
-            tg_alerts.append(f"{sym} <b>{meta['l']}</b> {meta['u']}{fmt_price(d['p'],k)} ({'+' if c>=0 else ''}{c:.2f}%)")
+            # 키: 종목+방향+1% 단위 반올림 (같은 방향 1% 이내 변화는 중복)
+            key = f"{k}_{sym}_{round(c)}"
+            tg_all_keys.append(key)
+            if key not in prev_sent:
+                tg_alerts.append(f"{sym} <b>{meta['l']}</b> {meta['u']}{fmt_price(d['p'],k)} ({'+' if c>=0 else ''}{c:.2f}%)")
+
     for iss in global_issues + domestic_issues:
         if iss.get('impact') == '상':
-            tg_alerts.append(f"⚠️ <b>[임팩트 상]</b> {iss['title'][:60]}")
+            # 키: 이슈 제목 앞 20자
+            key = f"iss_{iss['title'][:20]}"
+            tg_all_keys.append(key)
+            if key not in prev_sent:
+                tg_alerts.append(f"⚠️ <b>[임팩트 상]</b> {iss['title'][:60]}")
+
     brent_p = PRICE_DATA.get('BRENT',{}).get('p',0)
-    if brent_p > 110: tg_alerts.append(f"🛢 BRENT <b>${brent_p:.1f}</b> — $110 돌파")
-    elif brent_p and brent_p < 70: tg_alerts.append(f"🛢 BRENT <b>${brent_p:.1f}</b> — $70 하회")
+    if brent_p > 110:
+        key = f"brent_110_{int(brent_p//5)*5}"  # 5달러 단위
+        tg_all_keys.append(key)
+        if key not in prev_sent:
+            tg_alerts.append(f"🛢 BRENT <b>${brent_p:.1f}</b> — $110 돌파")
+    elif brent_p and brent_p < 70:
+        key = f"brent_70_{int(brent_p//5)*5}"
+        tg_all_keys.append(key)
+        if key not in prev_sent:
+            tg_alerts.append(f"🛢 BRENT <b>${brent_p:.1f}</b> — $70 하회")
+
     if tg_alerts:
         msg = f"📊 <b>HLOOMBERG 긴급알림</b> [{TS}]\n\n" + '\n'.join(tg_alerts[:5])
         tg_send(msg)
-        print(f'\n[Telegram] 조건알림 {len(tg_alerts)}건 발송')
+        print(f'\n[Telegram] 조건알림 {len(tg_alerts)}건 발송 (중복 {len(tg_all_keys)-len(tg_alerts)}건 억제)')
+    else:
+        dup = len([k for k in tg_all_keys if k in prev_sent])
+        if dup > 0:
+            print(f'\n[Telegram] 조건알림 없음 (중복 {dup}건 억제)')
+        else:
+            print('\n[Telegram] 알림 조건 없음')
+
+    # 캐시 업데이트 — 현재 감지된 키로 교체 (조건 사라지면 다음에 다시 알림)
+    save_tg_cache({'sent_keys': list(set(tg_all_keys)), 'ts': TS_SHORT})
 
     # ── 1시간마다 정기 요약 (매 정각 후 5분 이내 or 수동 실행 시)
     import os as _os
