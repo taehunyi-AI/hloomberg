@@ -1756,11 +1756,23 @@ TG_BOT  = os.environ.get('TELEGRAM_BOT_TOKEN','')
 TG_CHAT = os.environ.get('TELEGRAM_CHAT_ID','')
 
 def tg_send(msg):
-    if not TG_BOT or not TG_CHAT: return
+    if not TG_BOT or not TG_CHAT:
+        print('  [TG] 토큰/ChatID 미설정')
+        return
     try:
-        requests.post(f'https://api.telegram.org/bot{TG_BOT}/sendMessage',
-            json={'chat_id':TG_CHAT,'text':msg,'parse_mode':'HTML'}, timeout=8)
-    except: pass
+        chat_id = int(TG_CHAT)   # 그룹 음수 ID는 int 필요
+        r = requests.post(
+            f'https://api.telegram.org/bot{TG_BOT}/sendMessage',
+            json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'},
+            timeout=10
+        )
+        j = r.json()
+        if not j.get('ok'):
+            print(f'  [TG] 전송 실패: {j.get("error_code")} {j.get("description")}')
+        else:
+            print(f'  [TG] 전송 OK (message_id={j["result"]["message_id"]})')
+    except Exception as e:
+        print(f'  [TG] 예외: {e}')
 
 if TG_BOT:
     tg_alerts = []
