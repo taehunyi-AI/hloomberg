@@ -389,6 +389,26 @@ def make_kis_prices_js(data):
     lines.append('};')
     return '\n' + '\n'.join(lines) + '\n'
 
+def make_stocks_js(top10):
+    """AI 선정 TOP10 → STOCKS JS 배열"""
+    if not top10:
+        return '\nconst STOCKS=[];\n'
+    JE = lambda s: str(s).replace('\\','\\\\').replace("'","\\'").replace('\n','\\n')
+    lines = ['const STOCKS=[']
+    for s in top10:
+        name  = JE(s.get('name',''))
+        code  = JE(s.get('code',''))
+        mkt   = JE(s.get('mkt','KOSPI'))
+        th    = JE(s.get('th',''))
+        tc    = JE(s.get('tc','tsm'))
+        act   = JE(s.get('act','관심'))
+        ac    = JE(s.get('ac','awa'))
+        risk  = int(s.get('risk', 3))
+        desc  = JE(s.get('desc',''))
+        lines.append(f"  {{name:'{name}',code:'{code}',mkt:'{mkt}',th:'{th}',tc:'{tc}',act:'{act}',ac:'{ac}',risk:{risk},desc:'{desc}'}},")
+    lines.append('];')
+    return '\n' + '\n'.join(lines) + '\n'
+
 # 원자재 90일 차트 데이터 수집
 CMDTY_CHART_SYMS = {
     'BRENT': 'BZ=F', 'WTI': 'CL=F', 'GOLD': 'GC=F',
@@ -681,7 +701,6 @@ KR_RSS = [
     # ── 매일경제 (4개) — 올바른 섹션 URL로 교체
     ('https://www.mk.co.kr/rss/30100041/',          '매경경제',    'tk'),  # 경제
     ('https://www.mk.co.kr/rss/50200011/',          '매경증권',    'tk'),  # 증권 (수정)
-    ('https://www.mk.co.kr/rss/50100032/',          '매경기업',    'tk'),  # 기업·경영 (수정)
     ('https://www.mk.co.kr/rss/30300018/',          '매경국제',    'tk'),  # 국제
     # ── 서울경제
     ('https://www.sedaily.com/RSS/Economy',         '서울경제',    'tk'),
@@ -760,18 +779,29 @@ BLACKLIST_KW = [
     '이혼','결혼','임신','열애','결별',
     # 투자무관 정치
     '탄핵','대선','총선','당대표','여당','야당',
-    # 건강·의학(기업실적 무관)
+    # 건강·의학·복지(기업실적 무관)
     '다이어트','건강식품','처방','수술',
+    '생리','휴가','육아','출산휴가','임산부','복지','연금','보육',
+    '성별','여성','남성','젠더','페미','혐오',
+    # 법원·판결(투자무관)
+    '대법원','헌법재판','판결','선고','기각','인용','소송',
+    # 생활·여행
+    '맛집','여행','관광','숙박','호텔','항공권','요리','레시피',
+    # 홍보성·협회·유통
+    '홈쇼핑','협회장','협회','판로','지원사업','박람회','전시회',
+    '선정','수상','임명','취임','퇴임','인사발령',
     # 해외 비경제
     'celebrity','entertainment','sports','football','basketball','cricket',
     'hollywood','oscar','grammy','divorce','wedding','scandal','concert',
     'BTS','blackpink','kpop',
+    'maternity','menstrual','gender','court ruling','verdict','lifestyle',
 ]
 
 def is_relevant(title):
     """경제·기업실적·정부정책·국제정세 관련 뉴스만 통과"""
+    t_lower = title.lower()
     for kw in BLACKLIST_KW:
-        if kw.lower() in title.lower():
+        if kw.lower() in t_lower:
             return False
     return True
 
@@ -1308,36 +1338,70 @@ if ANTHROPIC_KEY:
     except Exception as e:
         print(f'  원자재 AI FAIL: {e}')
 
-    # 5-4. 스윙종목 간단 업데이트 (매 실행, Haiku)
+    # 5-4. 스윙종목 AI TOP10 선정 + 빠른 신호 (매 실행, Sonnet)
     swing_quick = {}
+    swing_top10 = []   # AI가 선정한 TOP10 — HTML STOCKS 패치용
     try:
-        print('  [5/4+] 스윙종목 빠른 업데이트...')
-        # STOCK_LIST는 STOCK_MODE 블록 아래 정의됨 → 직접 정의
-        _swing_stocks = [
-            {'name':'삼성전자',  'th':'반도체', 'mkt':'KOSPI', 'act':'분할매수', 'desc':'이란전쟁 무관. 원화 하락 수출 수혜.'},
-            {'name':'SK하이닉스','th':'반도체', 'mkt':'KOSPI', 'act':'분할매수', 'desc':'AI 메모리 수요 견고.'},
-            {'name':'삼성바이오', 'th':'제약',   'mkt':'KOSPI', 'act':'관심',    'desc':'지정학 무관 방어주.'},
-            {'name':'한화에어로', 'th':'방산',   'mkt':'KOSPI', 'act':'보유',    'desc':'중동 수주 기대.'},
-            {'name':'LIG넥스원',  'th':'방산',   'mkt':'KOSPI', 'act':'보유',    'desc':'천궁-II 수출.'},
-            {'name':'한국전력',   'th':'역발상', 'mkt':'KOSPI', 'act':'관심',    'desc':'유가 하락시 이중 수혜.'},
-            {'name':'S-Oil',      'th':'에너지', 'mkt':'KOSPI', 'act':'주의',    'desc':'WTI 급락 위험.'},
-            {'name':'한국카본',   'th':'LNG소재','mkt':'KOSDAQ','act':'관심',    'desc':'LNG선 단열재 1위.'},
-            {'name':'한국가스공사','th':'에너지','mkt':'KOSPI', 'act':'관심',    'desc':'EIA 연말 $70시 원가 하락.'},
-        ]
+        print('  [5/4+] 스윙종목 AI TOP10 선정...')
+
+        # 종목코드 → KIS 실시간 가격 맵 (참고용)
+        kis_price_str = ' | '.join([
+            f"{code}:{int(d['p']):,}원({'+' if d['c']>=0 else ''}{d['c']:.2f}%)"
+            for code, d in kis_stock_data.items()
+        ]) if kis_stock_data else '장 마감'
+
+        # 테마/색상 코드 매핑 (Claude 프롬프트용)
+        theme_guide = (
+            'tc(테마색): tsm=반도체/IT/AI, tdf=방산/우주, ten=에너지/정유, '
+            'trv=역발상/가치, tlg=LNG/소재, tph=제약/바이오\n'
+            'ac(매매색): aby=매수/분할매수, aho=보유, awa=관심/대기, awn=주의/회피'
+        )
+
+        issue_summary = '\n'.join([
+            f"- {i.get('title','')} [{i.get('impact','')}]"
+            for i in (global_issues + domestic_issues)[:10]
+        ])
+        top10_resp = call_claude(
+            'claude-sonnet-4-20250514',
+            '한국주식 전문 스윙트레이딩 애널리스트. 한국어. 음슴체. 존댓말 금지. JSON만 출력.',
+            f'[현재시세]\n{price_str}\n\n'
+            f'[KIS 실시간 종목시세]\n{kis_price_str}\n\n'
+            f'[국내뉴스]\n{kr_str[:800]}\n\n'
+            f'[글로벌 이슈]\n{issue_summary}\n\n'
+            f'현재 시장상황 기반 KOSPI/KOSDAQ 스윙트레이딩 추천종목 10개 선정.\n'
+            f'반드시 종목코드(6자리) 포함. 종목당 1~2문장 근거.\n\n'
+            f'{theme_guide}\n\n'
+            f'출력형식(JSON 배열만):\n'
+            f'[{{"name":"삼성전자","code":"005930","mkt":"KOSPI","th":"반도체","tc":"tsm",'
+            f'"act":"분할매수","ac":"aby","risk":2,"desc":"목표가 XX만원. 근거 1문장."}},...]\n'
+            f'risk: 1=매우낮음 2=낮음 3=중간 4=높음 5=매우높음',
+            3000
+        )
+        raw_top = re.sub(r'^```(?:json)?', '', top10_resp).rstrip('`').strip()
+        s1, s2 = raw_top.find('['), raw_top.rfind(']')
+        if s1 >= 0 and s2 > s1:
+            raw_top = raw_top[s1:s2+1]
+        top10_list = json.loads(raw_top)
+        swing_top10 = [x for x in top10_list if isinstance(x, dict) and x.get('name') and x.get('code')][:10]
+        print(f'  스윙 TOP10 선정: {len(swing_top10)}개')
+
+        # 빠른 신호도 TOP10 기준으로 생성
         swing_prompt = '\n'.join([
-            f"{s['name']}({s['th']}/{s['mkt']}): {s['act']} — {s['desc']}"
-            for s in _swing_stocks
+            f"{s['name']}({s.get('th','')}/{s.get('mkt','')}): {s.get('act','')} — {s.get('desc','')}"
+            for s in swing_top10
         ])
         swing_resp = call_claude(
             'claude-haiku-4-5-20251001',
             '한국주식 전문 애널리스트. 한국어. 음슴체. 존댓말 금지.',
-            f'[시세] {price_str}\n[뉴스요약] {kr_str[:600]}\n\n'
-            f'아래 스윙종목 각각의 오늘 투자의견을 JSON으로:\n{swing_prompt}\n\n'
+            f'[시세] {price_str}\n[뉴스] {kr_str[:400]}\n\n'
+            f'아래 종목 각각의 오늘 투자의견:\n{swing_prompt}\n\n'
             f'출력형식: [{{"name":"삼성전자","signal":"매수/관망/매도","reason":"1줄이유","target":0,"stop":0}},...]\n'
             f'JSON만 출력.',
             2000
         )
         raw2 = re.sub(r'^```(?:json)?', '', swing_resp).rstrip('`').strip()
+        s1, s2 = raw2.find('['), raw2.rfind(']')
+        if s1 >= 0 and s2 > s1: raw2 = raw2[s1:s2+1]
         swing_list2 = json.loads(raw2)
         for item in swing_list2:
             nm = item.get('name','')
@@ -1349,14 +1413,17 @@ if ANTHROPIC_KEY:
                     'stop':   item.get('stop',0),
                     'ts':     TS_SHORT
                 }
-        print(f'  스윙 빠른 업데이트: {len(swing_quick)}개')
+        print(f'  스윙 빠른 신호: {len(swing_quick)}개')
+
     except Exception as e:
-        print(f'  스윙 빠른 업데이트 FAIL: {e}')
+        print(f'  스윙 TOP10 FAIL: {e}')
+        swing_top10 = []
 
 else:
     print('  ANTHROPIC_API_KEY 없음 — AI 분석 스킵')
     cmdty_ai = {}
     swing_quick = {}
+    swing_top10 = []
 
 # ─────────────────────────────────────────
 # 5-2. 뉴스/공시 요약 (새 항목만, 중복 스킵)
@@ -1476,6 +1543,25 @@ html = re.sub(r'<!-- ##TS_SHORT_S## -->.*?<!-- ##TS_SHORT_E## -->', f'<!-- ##TS_
 # ── 시세 티커
 html = patch(html, '// ##TICKS_S##', '// ##TICKS_E##', '\n' + make_ticks_js() + '\n')
 html = patch(html, '// ##KIS_PRICES_S##', '// ##KIS_PRICES_E##', make_kis_prices_js(kis_stock_data))
+
+# AI TOP10 스윙종목 패치 (선정됐을 때만 교체)
+if swing_top10:
+    # TOP10 종목 중 KIS 미수집 코드 추가 조회
+    if kis_token:
+        for s in swing_top10:
+            code = s.get('code','')
+            if code and code not in kis_stock_data:
+                r = fetch_kis_price(code, kis_token)
+                if r:
+                    kis_stock_data[code] = r
+                    print(f'  KIS 추가수집 {code}: {int(r["p"]):,}원')
+                time.sleep(0.05)
+        # KIS_PRICES 재패치 (TOP10 코드 포함)
+        html = patch(html, '// ##KIS_PRICES_S##', '// ##KIS_PRICES_E##', make_kis_prices_js(kis_stock_data))
+    html = patch(html, '// ##STOCKS_S##', '// ##STOCKS_E##', make_stocks_js(swing_top10))
+    print(f'  STOCKS: AI TOP{len(swing_top10)} 패치 완료')
+else:
+    print(f'  STOCKS: AI 선정 실패 → 기존 유지')
 print(f'  TICKS: {len(PRICE_DATA)}개')
 
 # ── 국내뉴스 HTML (리스트 렌더)
