@@ -95,8 +95,8 @@ KIS_BASE_URL   = 'https://openapi.koreainvestment.com:9443'
 
 # KIS 담당 종목 (KOSPI/KOSDAQ 지수 + 국내 스윙종목)
 KIS_STOCK_CODES = {
-    'KOSPI':    ('U', 'FID_COND_MRK_DIV_CODE', '0001'),  # 지수 특수처리
-    'KOSDAQ':   ('U', 'FID_COND_MRK_DIV_CODE', '1001'),
+    'KOSPI':    ('U', 'FID_COND_MRKT_DIV_CODE', '0001'),  # 지수 특수처리
+    'KOSDAQ':   ('U', 'FID_COND_MRKT_DIV_CODE', '1001'),
     '005930':   'SAMSUNG',    # 삼성전자
     '000660':   'SKHYNIX',    # SK하이닉스
     '012450':   'HANWHA_AE',  # 한화에어로
@@ -161,7 +161,7 @@ def fetch_kis_price(code, token):
             'custtype':       'P',
         }
         params = {
-            'FID_COND_MRK_DIV_CODE': 'J',
+            'FID_COND_MRKT_DIV_CODE': 'J',
             'FID_INPUT_ISCD':         code,
         }
         r = SESS.get(
@@ -199,7 +199,7 @@ def fetch_kis_index(market_code, token):
             'tr_id':         'FHPUP02100000',   # 국내업종지수
         }
         params = {
-            'FID_COND_MRK_DIV_CODE': 'U',
+            'FID_COND_MRKT_DIV_CODE': 'U',
             'FID_INPUT_ISCD': market_code,      # 0001=KOSPI, 1001=KOSDAQ
         }
         r = SESS.get(
@@ -563,7 +563,7 @@ BOK_SERIES = {
     'KR_RATE':  {'stat':'722Y001', 'item':'0101000', 'cycle':'D', 'name':'한국 기준금리',  'unit':'%'},
     'KR_CPI':   {'stat':'901Y009', 'item':'0',       'cycle':'M', 'name':'한국 CPI',      'unit':''},
     'KR_BOP':   {'stat':'301Y013', 'item':'',        'cycle':'M', 'name':'한국 국제수지',  'unit':'백만달러'},
-    'KR_M2':    {'stat':'101Y004', 'item':'BBIA00',  'cycle':'M', 'name':'통화량 M2',     'unit':'십억원'},
+    'KR_M2':    {'stat':'161Y006', 'item':'',       'cycle':'M', 'name':'통화량 M2',     'unit':'십억원'},
 }
 
 def fetch_bok(stat_code, item_code, cycle='M'):
@@ -670,17 +670,33 @@ for sector, meta in SECTOR_ETFS.items():
 
 # ── 국내 RSS: 경제·증시·기업실적·정부정책 전문 피드
 KR_RSS = [
+    # ── 한국경제 (4개)
     ('https://www.hankyung.com/feed/economy',       '한국경제',    'tk'),
     ('https://www.hankyung.com/feed/finance',       '한경증권',    'tk'),
     ('https://www.hankyung.com/feed/it',            '한경IT',      'te'),
-    ('https://www.mk.co.kr/rss/30100041/',          '매일경제',    'tk'),
-    ('https://www.mk.co.kr/rss/30200030/',          '매경증권',    'tk'),
-    ('https://www.mk.co.kr/rss/50400012/',          '매경기업',    'tk'),
+    ('https://www.hankyung.com/feed/international', '한경국제',    'tk'),
+    # ── 매일경제 (4개) — 올바른 섹션 URL로 교체
+    ('https://www.mk.co.kr/rss/30100041/',          '매경경제',    'tk'),  # 경제
+    ('https://www.mk.co.kr/rss/50200011/',          '매경증권',    'tk'),  # 증권 (수정)
+    ('https://www.mk.co.kr/rss/50100032/',          '매경기업',    'tk'),  # 기업·경영 (수정)
+    ('https://www.mk.co.kr/rss/30300018/',          '매경국제',    'tk'),  # 국제
+    # ── 서울경제
     ('https://www.sedaily.com/RSS/Economy',         '서울경제',    'tk'),
+    # ── 연합뉴스 (정부발표·속보)
     ('https://www.yna.co.kr/rss/economy.xml',       '연합뉴스',    'tk'),
+    # ── 전자신문 (IT·반도체)
     ('https://rss.etnews.com/Section902.xml',       '전자신문',    'te'),
+    # ── 아시아경제
     ('https://www.asiae.co.kr/rss/economy.htm',     '아시아경제',  'tk'),
-    ('https://biz.heraldcorp.com/RSS/Feed.asp?category=010',  '헤럴드경제',  'tk'),  # 경제
+    # ── 이데일리
+    ('https://rss.edaily.co.kr/edaily/rss/newsflash.xml', '이데일리', 'tk'),
+    # ── 뉴스핌 (증권·금융·글로벌 수급 특화)
+    ('http://rss.newspim.com/news/category/105',    '뉴스핌증권',  'tk'),  # 증권·금융
+    ('http://rss.newspim.com/news/category/103',    '뉴스핌경제',  'tk'),  # 경제
+    ('http://rss.newspim.com/news/category/107',    '뉴스핌글로벌','tk'),  # 글로벌
+    # ── 파이낸셜뉴스 (금융·산업)
+    ('http://www.efnews.co.kr/rss/S1N4.xml',        '파이낸셜금융','tk'),  # 금융
+    ('http://www.efnews.co.kr/rss/S1N3.xml',        '파이낸셜산업','tk'),  # 산업
 ]
 
 # ── 국내 Google News: 경제·기업·정부정책 키워드
