@@ -65,6 +65,7 @@ jobs:
           KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
           KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
           STOCK_MODE: ${{ (github.event.schedule == '0 22 * * 1-5' || github.event.schedule == '0 6 * * 1-5' || github.event.schedule == '0 14 * * 1-5' || github.event.inputs.mode == 'stock') && '1' || '0' }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: python refresh.py
 
       - name: Save KIS token cache
