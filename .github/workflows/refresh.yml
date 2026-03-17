@@ -13,10 +13,8 @@ on:
     - cron: '*/5 0-14  * * 4'
     - cron: '*/5 21-23 * * 4'
     - cron: '*/5 0-14  * * 5'
-    # ── KST 08:00 (UTC 23:00 전날): AI 전체 (이슈/원자재/TOP10/상세분석)
-    - cron: '0 23 * * 0-4'
-    # ── KST 20:00 (UTC 11:00): AI 부분 (종합분석/TOP10만)
-    - cron: '0 11 * * 1-5'
+    # ── KST 06:00~23:00 매시간 Full AI (UTC 21:00~14:00, 평일)
+    - cron: '0 21,22,23,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 * * 1-5'
   workflow_dispatch:
     inputs:
       mode:
@@ -72,11 +70,9 @@ jobs:
           # AI_MODE: full=전체AI, partial=종합+TOP10, stock=상세분석만, ''=없음
           AI_MODE: >-
             ${{
-              (github.event.schedule == '0 23 * * 0-4' || github.event.inputs.mode == 'full')    && 'full'    ||
-              (github.event.schedule == '0 11 * * 1-5' || github.event.inputs.mode == 'partial') && 'partial' ||
-              (github.event.inputs.mode == 'stock')                                               && 'stock'   ||
-              (github.event_name == 'workflow_dispatch')                                          && 'full'    ||
-              ''
+              (github.event.inputs.mode == 'stock') && 'stock' ||
+              (github.event.inputs.mode == 'partial') && 'partial' ||
+              'full'
             }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: python refresh.py
