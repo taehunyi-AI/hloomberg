@@ -309,7 +309,7 @@ def fetch_fluctuation_rank(token, sort='0'):
             'FID_COND_MRKT_DIV_CODE':  'J',
             'FID_COND_SCR_DIV_CODE':   '20170',
             'FID_INPUT_ISCD':          '0000',
-            'FID_RANK_SORT_CLS_CODE':  '0000',
+            'FID_RANK_SORT_CLS_CODE':  '0',
             'FID_INPUT_CNT_1':         '20',
             'FID_PRC_CLS_CODE':        '0',
             'FID_INPUT_PRICE_1':       '1000',
