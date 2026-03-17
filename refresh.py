@@ -126,6 +126,129 @@ TICK_META = {
 
 
 
+def kis_get_token():
+    """KIS access_token 관리 — 유효하면 재사용, 만료시만 재발급"""
+    if not KIS_APP_KEY or not KIS_APP_SECRET:
+        return None
+    # 캐시 파일 확인
+    try:
+        with open(KIS_TOKEN_FILE, 'r') as f:
+            cached = json.load(f)
+        expire_dt = datetime.fromisoformat(cached.get('access_token_token_expired', '2000-01-01'))
+        expire_dt = expire_dt.replace(tzinfo=KST) if expire_dt.tzinfo is None else expire_dt
+        # 만료 1시간 전까지 재사용
+        if NOW < expire_dt - timedelta(hours=1):
+            print(f'  KIS 토큰 재사용 (만료: {expire_dt.strftime("%m/%d %H:%M")})')
+            return cached['access_token']
+    except Exception:
+        pass
+    # 신규 발급
+    try:
+        resp = SESS.post(
+            f'{KIS_BASE_URL}/oauth2/tokenP',
+            json={'grant_type': 'client_credentials',
+                  'appkey': KIS_APP_KEY, 'appsecret': KIS_APP_SECRET},
+            timeout=10
+        )
+        if not resp.ok:
+            print(f'  KIS 토큰 발급 실패: {resp.status_code}')
+            return None
+        data = resp.json()
+        token = data.get('access_token')
+        if not token:
+            print(f'  KIS 토큰 없음: {data}')
+            return None
+        # 캐시 저장 (토큰값은 파일에만, HTML에 절대 노출 안 함)
+        with open(KIS_TOKEN_FILE, 'w') as f:
+            json.dump(data, f)
+        print(f'  KIS 토큰 신규 발급 OK')
+        return token
+    except Exception as e:
+        print(f'  KIS 토큰 발급 오류: {e}')
+        return None
+
+
+def fetch_kis_price(code, token):
+    """KIS REST — 국내주식 현재가 조회 (TR: FHKST01010100)"""
+    try:
+        headers = {
+            'Content-Type':   'application/json; charset=utf-8',
+            'authorization':  f'Bearer {token}',
+            'appkey':         KIS_APP_KEY,
+            'appsecret':      KIS_APP_SECRET,
+            'tr_id':          'FHKST01010100',
+            'custtype':       'P',
+        }
+        params = {
+            'FID_COND_MRKT_DIV_CODE': 'J',
+            'FID_INPUT_ISCD':         code,
+        }
+        r = SESS.get(
+            f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price',
+            headers=headers, params=params, timeout=6
+        )
+        if not r.ok:
+            print(f'    KIS 종목 {code} HTTP {r.status_code}')
+            return None
+        j = r.json()
+        rt = j.get('rt_cd', '')
+        if rt != '0':
+            msg = j.get('msg1', '')[:50]
+            print(f'    KIS 종목 {code} 오류: rt_cd={rt} {msg}')
+            return None
+        d = j.get('output', {})
+        p  = float(d.get('stck_prpr', 0) or 0)
+        c  = float(d.get('prdy_ctrt', 0) or 0)
+        p0 = float(d.get('stck_sdpr', 0) or 0)
+        if p > 0:
+            return {'p': p, 'c': c, 'p0': p0, 'src': 'KIS'}
+        print(f'    KIS 종목 {code} 가격 0 (장 마감/데이터 없음)')
+    except Exception as e:
+        print(f'    KIS 종목 {code} 예외: {e}')
+    return None
+
+
+def fetch_kis_index(market_code, token):
+    """KIS REST — 지수 현재가 조회 (KOSPI/KOSDAQ)"""
+    try:
+        headers = {
+            'Content-Type':  'application/json',
+            'authorization': f'Bearer {token}',
+            'appkey':        KIS_APP_KEY,
+            'appsecret':     KIS_APP_SECRET,
+            'tr_id':         'FHPUP02100000',   # 국내업종지수
+        }
+        params = {
+            'FID_COND_MRKT_DIV_CODE': 'U',
+            'FID_INPUT_ISCD': market_code,      # 0001=KOSPI, 1001=KOSDAQ
+        }
+        r = SESS.get(
+            f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-index-price',
+            headers=headers, params=params, timeout=6
+        )
+        if not r.ok: return None
+        d = r.json().get('output', {})
+        p = float(d.get('bstp_nmix_prpr', 0) or 0)   # 현재 지수
+        c = float(d.get('bstp_nmix_prdy_ctrt', 0) or 0)  # 전일대비율
+        if p > 0:
+            return {'p': p, 'c': c, 'src': 'KIS'}
+    except Exception as e:
+        pass
+    return None
+
+# KIS 시세 데이터 (종목코드 → price dict)
+kis_stock_data = {}
+
+
+
+# 원자재 90일 차트 데이터 수집
+CMDTY_CHART_SYMS = {
+    'BRENT': 'BZ=F', 'WTI': 'CL=F', 'GOLD': 'GC=F',
+    'NATGAS': 'NG=F', 'SILVER': 'SI=F', 'COPPER': 'HG=F',
+}
+cmdty_chart = {}
+
+
 def kis_get(url_path, tr_id, params, token):
     """KIS REST GET 공통 헬퍼"""
     try:
@@ -537,126 +660,6 @@ KIS_STOCK_CODES = {
     '036460':   'KOGAS',      # 한국가스공사
     '207940':   'SAMSUNGBIO', # 삼성바이오
 }
-
-def kis_get_token():
-    """KIS access_token 관리 — 유효하면 재사용, 만료시만 재발급"""
-    if not KIS_APP_KEY or not KIS_APP_SECRET:
-        return None
-    # 캐시 파일 확인
-    try:
-        with open(KIS_TOKEN_FILE, 'r') as f:
-            cached = json.load(f)
-        expire_dt = datetime.fromisoformat(cached.get('access_token_token_expired', '2000-01-01'))
-        expire_dt = expire_dt.replace(tzinfo=KST) if expire_dt.tzinfo is None else expire_dt
-        # 만료 1시간 전까지 재사용
-        if NOW < expire_dt - timedelta(hours=1):
-            print(f'  KIS 토큰 재사용 (만료: {expire_dt.strftime("%m/%d %H:%M")})')
-            return cached['access_token']
-    except Exception:
-        pass
-    # 신규 발급
-    try:
-        resp = SESS.post(
-            f'{KIS_BASE_URL}/oauth2/tokenP',
-            json={'grant_type': 'client_credentials',
-                  'appkey': KIS_APP_KEY, 'appsecret': KIS_APP_SECRET},
-            timeout=10
-        )
-        if not resp.ok:
-            print(f'  KIS 토큰 발급 실패: {resp.status_code}')
-            return None
-        data = resp.json()
-        token = data.get('access_token')
-        if not token:
-            print(f'  KIS 토큰 없음: {data}')
-            return None
-        # 캐시 저장 (토큰값은 파일에만, HTML에 절대 노출 안 함)
-        with open(KIS_TOKEN_FILE, 'w') as f:
-            json.dump(data, f)
-        print(f'  KIS 토큰 신규 발급 OK')
-        return token
-    except Exception as e:
-        print(f'  KIS 토큰 발급 오류: {e}')
-        return None
-
-def fetch_kis_price(code, token):
-    """KIS REST — 국내주식 현재가 조회 (TR: FHKST01010100)"""
-    try:
-        headers = {
-            'Content-Type':   'application/json; charset=utf-8',
-            'authorization':  f'Bearer {token}',
-            'appkey':         KIS_APP_KEY,
-            'appsecret':      KIS_APP_SECRET,
-            'tr_id':          'FHKST01010100',
-            'custtype':       'P',
-        }
-        params = {
-            'FID_COND_MRKT_DIV_CODE': 'J',
-            'FID_INPUT_ISCD':         code,
-        }
-        r = SESS.get(
-            f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price',
-            headers=headers, params=params, timeout=6
-        )
-        if not r.ok:
-            print(f'    KIS 종목 {code} HTTP {r.status_code}')
-            return None
-        j = r.json()
-        rt = j.get('rt_cd', '')
-        if rt != '0':
-            msg = j.get('msg1', '')[:50]
-            print(f'    KIS 종목 {code} 오류: rt_cd={rt} {msg}')
-            return None
-        d = j.get('output', {})
-        p  = float(d.get('stck_prpr', 0) or 0)
-        c  = float(d.get('prdy_ctrt', 0) or 0)
-        p0 = float(d.get('stck_sdpr', 0) or 0)
-        if p > 0:
-            return {'p': p, 'c': c, 'p0': p0, 'src': 'KIS'}
-        print(f'    KIS 종목 {code} 가격 0 (장 마감/데이터 없음)')
-    except Exception as e:
-        print(f'    KIS 종목 {code} 예외: {e}')
-    return None
-
-def fetch_kis_index(market_code, token):
-    """KIS REST — 지수 현재가 조회 (KOSPI/KOSDAQ)"""
-    try:
-        headers = {
-            'Content-Type':  'application/json',
-            'authorization': f'Bearer {token}',
-            'appkey':        KIS_APP_KEY,
-            'appsecret':     KIS_APP_SECRET,
-            'tr_id':         'FHPUP02100000',   # 국내업종지수
-        }
-        params = {
-            'FID_COND_MRKT_DIV_CODE': 'U',
-            'FID_INPUT_ISCD': market_code,      # 0001=KOSPI, 1001=KOSDAQ
-        }
-        r = SESS.get(
-            f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-index-price',
-            headers=headers, params=params, timeout=6
-        )
-        if not r.ok: return None
-        d = r.json().get('output', {})
-        p = float(d.get('bstp_nmix_prpr', 0) or 0)   # 현재 지수
-        c = float(d.get('bstp_nmix_prdy_ctrt', 0) or 0)  # 전일대비율
-        if p > 0:
-            return {'p': p, 'c': c, 'src': 'KIS'}
-    except Exception as e:
-        pass
-    return None
-
-# KIS 시세 데이터 (종목코드 → price dict)
-kis_stock_data = {}
-
-
-
-# 원자재 90일 차트 데이터 수집
-CMDTY_CHART_SYMS = {
-    'BRENT': 'BZ=F', 'WTI': 'CL=F', 'GOLD': 'GC=F',
-    'NATGAS': 'NG=F', 'SILVER': 'SI=F', 'COPPER': 'HG=F',
-}
-cmdty_chart = {}
 
 def fetch_chart_data(sym, days=90):
     for q in ('query1', 'query2'):
