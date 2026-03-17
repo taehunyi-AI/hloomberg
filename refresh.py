@@ -93,6 +93,36 @@ KIS_APP_SECRET = os.environ.get('KIS_APP_SECRET', '')
 KIS_TOKEN_FILE = '/tmp/kis_token.json'   # GitHub Actions 임시 파일 (Actions 캐시로 24h 재사용)
 KIS_BASE_URL   = 'https://openapi.koreainvestment.com:9443'
 
+TICKERS = {
+    'KOSPI':   '^KS11',   'KOSDAQ':  '^KQ11',
+    'BRENT':   'BZ=F',    'WTI':     'CL=F',
+    'GOLD':    'GC=F',    'NATGAS':  'NG=F',
+    'SP500':   '^GSPC',   'NIKKEI':  '^N225',
+    'VIX':     '^VIX',    'UST10':   '^TNX',
+    'USDKRW':  'USDKRW=X',
+    'SILVER':  'SI=F',    'COPPER':  'HG=F',
+    'LITHIUM': 'LIT',
+    'URA':     'URA',
+}
+TICK_META = {
+    'KOSPI':   {'l':'KOSPI',    'u':'',  'dp':0},
+    'KOSDAQ':  {'l':'KOSDAQ',   'u':'',  'dp':2},
+    'BRENT':   {'l':'BRENT',    'u':'$', 'dp':2},
+    'WTI':     {'l':'WTI',      'u':'$', 'dp':2},
+    'GOLD':    {'l':'GOLD',     'u':'$', 'dp':0},
+    'NATGAS':  {'l':'NAT GAS',  'u':'$', 'dp':3},
+    'SP500':   {'l':'S&P500',   'u':'',  'dp':2},
+    'NIKKEI':  {'l':'NIKKEI',   'u':'',  'dp':0},
+    'VIX':     {'l':'VIX',      'u':'',  'dp':2},
+    'UST10':   {'l':'10Y UST',  'u':'',  'dp':3},
+    'USDKRW':  {'l':'USD/KRW',  'u':'',  'dp':2},
+    'SILVER':  {'l':'SILVER',   'u':'$', 'dp':2},
+    'COPPER':  {'l':'COPPER',   'u':'$', 'dp':3},
+    'LITHIUM': {'l':'LITHIUM',  'u':'$', 'dp':2},
+    'URA':     {'l':'URANIUM',  'u':'$', 'dp':2},
+}
+
+
 
 def kis_get(url_path, tr_id, params, token):
     """KIS REST GET 공통 헬퍼"""
@@ -555,6 +585,7 @@ def fetch_kis_index(market_code, token):
 
 # KIS 시세 데이터 (종목코드 → price dict)
 kis_stock_data = {}
+
 PRICE_DATA = {}   # ← Yahoo 수집 전 KIS가 먼저 채움
 
 kis_token = None
@@ -619,34 +650,6 @@ else:
         print('[KIS] KIS_APP_KEY 미설정 — Yahoo fallback')
     foreign_buy = []; institution_buy = []; fluctuation_rank = []; volume_rank_data = []
 
-TICKERS = {
-    'KOSPI':   '^KS11',   'KOSDAQ':  '^KQ11',
-    'BRENT':   'BZ=F',    'WTI':     'CL=F',
-    'GOLD':    'GC=F',    'NATGAS':  'NG=F',
-    'SP500':   '^GSPC',   'NIKKEI':  '^N225',
-    'VIX':     '^VIX',    'UST10':   '^TNX',
-    'USDKRW':  'USDKRW=X',
-    'SILVER':  'SI=F',    'COPPER':  'HG=F',
-    'LITHIUM': 'LIT',
-    'URA':     'URA',
-}
-TICK_META = {
-    'KOSPI':   {'l':'KOSPI',    'u':'',  'dp':0},
-    'KOSDAQ':  {'l':'KOSDAQ',   'u':'',  'dp':2},
-    'BRENT':   {'l':'BRENT',    'u':'$', 'dp':2},
-    'WTI':     {'l':'WTI',      'u':'$', 'dp':2},
-    'GOLD':    {'l':'GOLD',     'u':'$', 'dp':0},
-    'NATGAS':  {'l':'NAT GAS',  'u':'$', 'dp':3},
-    'SP500':   {'l':'S&P500',   'u':'',  'dp':2},
-    'NIKKEI':  {'l':'NIKKEI',   'u':'',  'dp':0},
-    'VIX':     {'l':'VIX',      'u':'',  'dp':2},
-    'UST10':   {'l':'10Y UST',  'u':'',  'dp':3},
-    'USDKRW':  {'l':'USD/KRW',  'u':'',  'dp':2},
-    'SILVER':  {'l':'SILVER',   'u':'$', 'dp':2},
-    'COPPER':  {'l':'COPPER',   'u':'$', 'dp':3},
-    'LITHIUM': {'l':'LITHIUM',  'u':'$', 'dp':2},
-    'URA':     {'l':'URANIUM',  'u':'$', 'dp':2},
-}
 
 # 원자재 90일 차트 데이터 수집
 CMDTY_CHART_SYMS = {
