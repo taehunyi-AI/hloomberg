@@ -125,6 +125,7 @@ TICK_META = {
 
 
 
+
 def kis_get(url_path, tr_id, params, token):
     """KIS REST GET 공통 헬퍼"""
     try:
@@ -152,7 +153,7 @@ def fetch_foreign_institution(token, mkt='0001', cls='1'):
         '/uapi/domestic-stock/v1/quotations/foreign-institution-total',
         'FHPTJ04400000',
         {'FID_COND_MRKT_DIV_CODE':'V','FID_COND_SCR_DIV_CODE':'16449',
-         'FID_INPUT_ISCD':mkt,'FID_DIV_CLS_CODE':'0',
+         'FID_INPUT_ISCD':mkt,'FID_DIV_CLS_CODE':'1',   # 1=금액정렬
          'FID_RANK_SORT_CLS_CODE':'0','FID_ETC_CLS_CODE':cls},
         token
     )
@@ -163,26 +164,25 @@ def fetch_foreign_institution(token, mkt='0001', cls='1'):
             result.append({
                 'name': item.get('hts_kor_isnm','').strip(),
                 'code': item.get('mksc_shrn_iscd','').strip(),
-                'net':  int(item.get('ntby_qty','0').replace(',','') or 0),
-                'net_amt': int(item.get('ntby_tr_pbmn','0').replace(',','') or 0),
+                'net':  int(str(item.get('ntby_qty',0) or 0).replace(',','')),
+                'net_amt': int(str(item.get('ntby_tr_pbmn',0) or 0).replace(',','')),
             })
         except: pass
     return [x for x in result if x['name']]
 
 def fetch_fluctuation_rank(token, sort='0'):
-    """2순위: 등락률 상위 TOP20
-    sort: 0=등락률 내림차순(상승), 1=오름차순(하락)
-    """
+    """2순위: 등락률 상위 TOP20 — 하한 제거해서 모든 상승종목 포함"""
     j = kis_get(
         '/uapi/domestic-stock/v1/ranking/fluctuation',
         'FHPST01700000',
         {'FID_COND_MRKT_DIV_CODE':'J','FID_COND_SCR_DIV_CODE':'20170',
          'FID_INPUT_ISCD':'0000','FID_RANK_SORT_CLS_CODE':'0000',
          'FID_INPUT_CNT_1':'20','FID_PRC_CLS_CODE':'0',
-         'FID_INPUT_PRICE_1':'1000','FID_INPUT_PRICE_2':'1000000',
-         'FID_VOL_CNT':'50000','FID_TRGT_CLS_CODE':'0',
+         'FID_INPUT_PRICE_1':'1000','FID_INPUT_PRICE_2':'500000',
+         'FID_VOL_CNT':'10000',                          # 거래량 하한 낮춤
+         'FID_TRGT_CLS_CODE':'0',
          'FID_TRGT_EXLS_CLS_CODE':'0','FID_DIV_CLS_CODE':'0',
-         'FID_RSFL_RATE1':'1','FID_RSFL_RATE2':'30'},
+         'FID_RSFL_RATE1':'0','FID_RSFL_RATE2':'30'},    # 하한 0%로 변경
         token
     )
     if not j: return []
@@ -193,8 +193,8 @@ def fetch_fluctuation_rank(token, sort='0'):
                 'name': item.get('hts_kor_isnm','').strip(),
                 'code': item.get('stck_shrn_iscd','').strip(),
                 'rate': float(item.get('prdy_ctrt','0') or 0),
-                'price': int(item.get('stck_prpr','0').replace(',','') or 0),
-                'vol':  int(item.get('acml_vol','0').replace(',','') or 0),
+                'price': int(str(item.get('stck_prpr','0') or 0).replace(',','')),
+                'vol':  int(str(item.get('acml_vol','0') or 0).replace(',','')),
             })
         except: pass
     return [x for x in result if x['name'] and x['code']]
@@ -375,6 +375,68 @@ def get_price(key, sym):
         r = fn(sym)
         if r: return r
     return None
+
+kis_token = None
+if KIS_APP_KEY and KIS_APP_SECRET:
+    print(f'\n[KIS] 토큰 확인...')
+    kis_token = kis_get_token()
+
+if kis_token:
+    print(f'[KIS] 국내 시세 수집...')
+    # KOSPI 지수
+    r = fetch_kis_index('0001', kis_token)
+    if r:
+        PRICE_DATA['KOSPI'] = r
+        print(f"  OK  KOSPI       {r['p']:>10.2f}  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
+    time.sleep(0.05)
+    # KOSDAQ 지수
+    r = fetch_kis_index('1001', kis_token)
+    if r:
+        PRICE_DATA['KOSDAQ'] = r
+        print(f"  OK  KOSDAQ      {r['p']:>10.2f}  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
+    time.sleep(0.05)
+    # 스윙종목 9개
+    stock_code_map = {
+        '005930': 'KIS_005930', '000660': 'KIS_000660',
+        '012450': 'KIS_012450', '079550': 'KIS_079550',
+        '015760': 'KIS_015760', '010950': 'KIS_010950',
+        '008730': 'KIS_008730', '036460': 'KIS_036460',
+        '207940': 'KIS_207940',
+    }
+    for code, key in stock_code_map.items():
+        r = fetch_kis_price(code, kis_token)
+        if r:
+            kis_stock_data[code] = r
+            print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
+        time.sleep(0.05)
+    print(f'  KIS 완료: 지수 + {len(kis_stock_data)}개 종목')
+
+    # ── 1순위: 외국인/기관 순매수 TOP10
+    print('[KIS 수급] 외국인/기관 순매수 수집...')
+    foreign_buy  = fetch_foreign_institution(kis_token, '0001', '1')   # 코스피 외국인
+    institution_buy = fetch_foreign_institution(kis_token, '0001', '2') # 코스피 기관
+    print(f'  외국인 순매수: {len(foreign_buy)}개 / 기관 순매수: {len(institution_buy)}개')
+    time.sleep(0.3)
+
+    # ── 2순위: 등락률 상위
+    print('[KIS 순위] 등락률 상위 수집...')
+    fluctuation_rank = fetch_fluctuation_rank(kis_token)
+    print(f'  등락률 상위: {len(fluctuation_rank)}개')
+    time.sleep(0.3)
+
+    # ── 3순위: 거래량 상위
+    print('[KIS 순위] 거래량 상위 수집...')
+    volume_rank_data = fetch_volume_rank(kis_token)
+    print(f'  거래량 상위: {len(volume_rank_data)}개')
+    time.sleep(0.3)
+
+else:
+    if KIS_APP_KEY:
+        print('[KIS] 토큰 발급 실패 — Yahoo fallback')
+    else:
+        print('[KIS] KIS_APP_KEY 미설정 — Yahoo fallback')
+    foreign_buy = []; institution_buy = []; fluctuation_rank = []; volume_rank_data = []
+
 
 print(f'\n[시세] {len(TICKERS)}개 수집...')
 # KIS가 이미 수집한 지수(KOSPI/KOSDAQ)는 Yahoo로 덮어쓰지 않음
@@ -587,68 +649,6 @@ def fetch_kis_index(market_code, token):
 # KIS 시세 데이터 (종목코드 → price dict)
 kis_stock_data = {}
 
-
-kis_token = None
-if KIS_APP_KEY and KIS_APP_SECRET:
-    print(f'\n[KIS] 토큰 확인...')
-    kis_token = kis_get_token()
-
-if kis_token:
-    print(f'[KIS] 국내 시세 수집...')
-    # KOSPI 지수
-    r = fetch_kis_index('0001', kis_token)
-    if r:
-        PRICE_DATA['KOSPI'] = r
-        print(f"  OK  KOSPI       {r['p']:>10.2f}  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-    time.sleep(0.05)
-    # KOSDAQ 지수
-    r = fetch_kis_index('1001', kis_token)
-    if r:
-        PRICE_DATA['KOSDAQ'] = r
-        print(f"  OK  KOSDAQ      {r['p']:>10.2f}  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-    time.sleep(0.05)
-    # 스윙종목 9개
-    stock_code_map = {
-        '005930': 'KIS_005930', '000660': 'KIS_000660',
-        '012450': 'KIS_012450', '079550': 'KIS_079550',
-        '015760': 'KIS_015760', '010950': 'KIS_010950',
-        '008730': 'KIS_008730', '036460': 'KIS_036460',
-        '207940': 'KIS_207940',
-    }
-    for code, key in stock_code_map.items():
-        r = fetch_kis_price(code, kis_token)
-        if r:
-            kis_stock_data[code] = r
-            print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-        time.sleep(0.05)
-    print(f'  KIS 완료: 지수 + {len(kis_stock_data)}개 종목')
-
-    # ── 1순위: 외국인/기관 순매수 TOP10
-    print('[KIS 수급] 외국인/기관 순매수 수집...')
-    foreign_buy  = fetch_foreign_institution(kis_token, '0001', '1')   # 코스피 외국인
-    institution_buy = fetch_foreign_institution(kis_token, '0001', '2') # 코스피 기관
-    foreign_sell = fetch_foreign_institution(kis_token, '0001', '1')   # (순매도는 같은 API, sort 방향만 다름)
-    print(f'  외국인 순매수: {len(foreign_buy)}개 / 기관 순매수: {len(institution_buy)}개')
-    time.sleep(0.3)
-
-    # ── 2순위: 등락률 상위
-    print('[KIS 순위] 등락률 상위 수집...')
-    fluctuation_rank = fetch_fluctuation_rank(kis_token)
-    print(f'  등락률 상위: {len(fluctuation_rank)}개')
-    time.sleep(0.3)
-
-    # ── 3순위: 거래량 상위
-    print('[KIS 순위] 거래량 상위 수집...')
-    volume_rank_data = fetch_volume_rank(kis_token)
-    print(f'  거래량 상위: {len(volume_rank_data)}개')
-    time.sleep(0.3)
-
-else:
-    if KIS_APP_KEY:
-        print('[KIS] 토큰 발급 실패 — Yahoo fallback')
-    else:
-        print('[KIS] KIS_APP_KEY 미설정 — Yahoo fallback')
-    foreign_buy = []; institution_buy = []; fluctuation_rank = []; volume_rank_data = []
 
 
 # 원자재 90일 차트 데이터 수집
@@ -1994,9 +1994,11 @@ STOCK_LIST = [
 stock_analysis = {}
 
 if STOCK_MODE and ANTHROPIC_KEY:
-    print(f'\n[종목분석] Sonnet 상세분석 시작 ({len(STOCK_LIST)}개)...')
+    # 상세분석 대상: AI TOP10이 있으면 사용, 없으면 STOCK_LIST 폴백
+    _analysis_list = [{'name':s['name'],'th':s.get('th',''),'mkt':s.get('mkt','KOSPI'),'act':s.get('act','관심'),'desc':s.get('desc',''),'code':s.get('code','')} for s in swing_top10] if swing_top10 else STOCK_LIST
+    print(f'\n[종목분석] Sonnet 상세분석 시작 ({len(_analysis_list)}개)...')
     price_str = ' | '.join([f"{k}:{fmt_price(v['p'],k)}({'+' if v['c']>=0 else ''}{v['c']:.2f}%)" for k,v in PRICE_DATA.items()])
-    for s in STOCK_LIST:
+    for s in _analysis_list:
         try:
             # 6순위: 재무비율 KIS에서 실수치 조회
             fin_str = ''
