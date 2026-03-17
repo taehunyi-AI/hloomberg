@@ -59,6 +59,9 @@ jobs:
       - name: Fetch & Patch
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROQ_API_KEY:       ${{ secrets.GROQ_API_KEY }}
+          # AI_PROVIDER: claude(기본) 또는 groq (refresh.py 서버사이드 AI 호출)
+          AI_PROVIDER:        groq
           DART_API_KEY:       ${{ secrets.DART_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -69,9 +72,10 @@ jobs:
           # AI_MODE: full=전체AI, partial=종합+TOP10, stock=상세분석만, ''=없음
           AI_MODE: >-
             ${{
-              (github.event.schedule == '0 23 * * 0-4' || github.event.inputs.mode == 'full')   && 'full'    ||
+              (github.event.schedule == '0 23 * * 0-4' || github.event.inputs.mode == 'full')    && 'full'    ||
               (github.event.schedule == '0 11 * * 1-5' || github.event.inputs.mode == 'partial') && 'partial' ||
               (github.event.inputs.mode == 'stock')                                               && 'stock'   ||
+              (github.event_name == 'workflow_dispatch')                                          && 'full'    ||
               ''
             }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
