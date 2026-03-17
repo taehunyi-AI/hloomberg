@@ -24,8 +24,10 @@ AI_PROVIDER = os.environ.get('AI_PROVIDER', 'claude').strip().lower()
 
 # Groq 모델 매핑 (claude 모델명 → groq 모델명)
 GROQ_MODEL_MAP = {
-    'claude-sonnet-4-20250514':    'meta-llama/llama-4-maverick-17b-128e-instruct',
-    'claude-haiku-4-5-20251001':   'meta-llama/llama-4-scout-17b-16e-instruct',
+    # 2026-02-20: llama-4-maverick deprecated → openai/gpt-oss-120b
+    # 2026-02-10: llama-4-scout deprecated → openai/gpt-oss-20b
+    'claude-sonnet-4-20250514':    'openai/gpt-oss-120b',   # 고품질 분석 (sonnet 대체)
+    'claude-haiku-4-5-20251001':   'openai/gpt-oss-20b',    # 빠른 요약 (haiku 대체)
 }
 HTML_FILE     = 'hloomberg.html'
 
@@ -1485,7 +1487,7 @@ def call_ai(model, system, user, max_tokens=3000):
     if AI_PROVIDER == 'groq':
         if not GROQ_KEY:
             raise Exception('No GROQ_API_KEY')
-        groq_model = GROQ_MODEL_MAP.get(model, 'meta-llama/llama-4-maverick-17b-128e-instruct')
+        groq_model = GROQ_MODEL_MAP.get(model, 'openai/gpt-oss-120b')
         resp = requests.post(
             'https://api.groq.com/openai/v1/chat/completions',
             headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
