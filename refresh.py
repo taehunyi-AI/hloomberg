@@ -1482,28 +1482,52 @@ def parse_issues_json(text):
     return []
 
 
+# Groq Free tier: 8,000 TPM 한도 → 호출 간 간격 제어
+GROQ_CALL_INTERVAL = 8   # 초: 연속 호출 간 최소 대기
+GROQ_RETRY_WAIT    = 15  # 초: 429 발생 시 재시도 대기
+GROQ_MAX_RETRY     = 3   # 최대 재시도 횟수
+_groq_last_call    = 0.0 # 마지막 Groq 호출 시각
+
 def call_ai(model, system, user, max_tokens=3000):
     """Claude 또는 Groq API 호출 (AI_PROVIDER 환경변수로 선택)"""
+    global _groq_last_call
+
     if AI_PROVIDER == 'groq':
         if not GROQ_KEY:
             raise Exception('No GROQ_API_KEY')
         groq_model = GROQ_MODEL_MAP.get(model, 'openai/gpt-oss-120b')
-        resp = requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
-            json={
-                'model': groq_model,
-                'max_tokens': max_tokens,
-                'messages': [
-                    {'role': 'system', 'content': system},
-                    {'role': 'user',   'content': user},
-                ],
-            },
-            timeout=120,
-        )
-        if not resp.ok:
-            raise Exception(f'Groq HTTP {resp.status_code}: {resp.text[:200]}')
-        raw = resp.json()['choices'][0]['message']['content'].strip()
+
+        # TPM 한도 보호: 마지막 호출로부터 최소 간격 확보
+        elapsed = time.time() - _groq_last_call
+        if elapsed < GROQ_CALL_INTERVAL:
+            time.sleep(GROQ_CALL_INTERVAL - elapsed)
+
+        for attempt in range(GROQ_MAX_RETRY):
+            _groq_last_call = time.time()
+            resp = requests.post(
+                'https://api.groq.com/openai/v1/chat/completions',
+                headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
+                json={
+                    'model': groq_model,
+                    'max_tokens': max_tokens,
+                    'messages': [
+                        {'role': 'system', 'content': system},
+                        {'role': 'user',   'content': user},
+                    ],
+                },
+                timeout=120,
+            )
+            if resp.status_code == 429:
+                wait = GROQ_RETRY_WAIT * (attempt + 1)
+                print(f'    Groq 429 → {wait}초 대기 후 재시도 ({attempt+1}/{GROQ_MAX_RETRY})')
+                time.sleep(wait)
+                continue
+            if not resp.ok:
+                raise Exception(f'Groq HTTP {resp.status_code}: {resp.text[:200]}')
+            raw = resp.json()['choices'][0]['message']['content'].strip()
+            return re.sub(r'^```(?:json)?', '', raw).rstrip('`').strip()
+        raise Exception(f'Groq 429 재시도 {GROQ_MAX_RETRY}회 초과')
+
     else:
         if not ANTHROPIC_KEY:
             raise Exception('No ANTHROPIC_API_KEY')
