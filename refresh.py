@@ -93,6 +93,7 @@ KIS_APP_SECRET = os.environ.get('KIS_APP_SECRET', '')
 KIS_TOKEN_FILE = '/tmp/kis_token.json'   # GitHub Actions 임시 파일 (Actions 캐시로 24h 재사용)
 KIS_BASE_URL   = 'https://openapi.koreainvestment.com:9443'
 
+PRICE_DATA = {}   # ← Yahoo 수집 전 KIS가 먼저 채움
 TICKERS = {
     'KOSPI':   '^KS11',   'KOSDAQ':  '^KQ11',
     'BRENT':   'BZ=F',    'WTI':     'CL=F',
@@ -586,7 +587,6 @@ def fetch_kis_index(market_code, token):
 # KIS 시세 데이터 (종목코드 → price dict)
 kis_stock_data = {}
 
-PRICE_DATA = {}   # ← Yahoo 수집 전 KIS가 먼저 채움
 
 kis_token = None
 if KIS_APP_KEY and KIS_APP_SECRET:
