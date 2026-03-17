@@ -1546,6 +1546,29 @@ def call_ai(model, system, user, max_tokens=3000):
 def call_claude(model, system, user, max_tokens=3000):
     return call_ai(model, system, user, max_tokens)
 
+def extract_json_array(text):
+    """응답 텍스트에서 JSON 배열을 안전하게 추출. 마크다운/설명문 혼입 대응."""
+    if not text:
+        return None
+    # 1차: 코드블록 제거
+    text = re.sub(r'```(?:json)?\s*', '', text).strip().rstrip('`').strip()
+    # 2차: 첫 [ ~ 마지막 ] 추출
+    s1, s2 = text.find('['), text.rfind(']')
+    if s1 >= 0 and s2 > s1:
+        candidate = text[s1:s2+1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            # 3차: 불완전 JSON 복구 — 마지막 완전한 객체까지만 파싱
+            last_brace = candidate.rfind('},')
+            if last_brace > 0:
+                trimmed = candidate[:last_brace+1] + ']'
+                try:
+                    return json.loads(trimmed)
+                except Exception:
+                    pass
+    return None
+
 def translate_titles(items):
     to_tr = [(i, n) for i, n in enumerate(items) if not re.search(r'[가-힣]', n['title'])]
     if not to_tr or not ANTHROPIC_KEY: return
@@ -1757,11 +1780,9 @@ if ANTHROPIC_KEY and AI_PARTIAL:
                 f'risk: 1=매우낮음 2=낮음 3=중간 4=높음 5=매우높음',
                 3000
             )
-            raw_top = re.sub(r'^```(?:json)?', '', top10_resp).rstrip('`').strip()
-            s1, s2 = raw_top.find('['), raw_top.rfind(']')
-            if s1 >= 0 and s2 > s1:
-                raw_top = raw_top[s1:s2+1]
-            top10_list = json.loads(raw_top)
+            top10_list = extract_json_array(top10_resp)
+            if not top10_list:
+                raise ValueError('TOP10 JSON 파싱 실패')
             swing_top10 = [x for x in top10_list if isinstance(x, dict) and x.get('name') and x.get('code')][:10]
             print(f'  스윙 TOP10 선정: {len(swing_top10)}개')
     
@@ -1779,10 +1800,7 @@ if ANTHROPIC_KEY and AI_PARTIAL:
                 f'JSON만 출력.',
                 2000
             )
-            raw2 = re.sub(r'^```(?:json)?', '', swing_resp).rstrip('`').strip()
-            s1, s2 = raw2.find('['), raw2.rfind(']')
-            if s1 >= 0 and s2 > s1: raw2 = raw2[s1:s2+1]
-            swing_list2 = json.loads(raw2)
+            swing_list2 = extract_json_array(swing_resp) or []
             for item in swing_list2:
                 nm = item.get('name','')
                 if nm:
