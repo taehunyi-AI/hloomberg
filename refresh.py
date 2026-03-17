@@ -16,11 +16,36 @@ from bs4 import BeautifulSoup
 # 설정
 # ─────────────────────────────────────────
 ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+GROQ_KEY      = os.environ.get('GROQ_API_KEY', '')
 DART_KEY      = os.environ.get('DART_API_KEY', '')
+
+# AI 프로바이더 선택: 환경변수 AI_PROVIDER=groq 이면 Groq, 기본값 claude
+AI_PROVIDER = os.environ.get('AI_PROVIDER', 'claude').strip().lower()
+
+# Groq 모델 매핑 (claude 모델명 → groq 모델명)
+GROQ_MODEL_MAP = {
+    'claude-sonnet-4-20250514':    'meta-llama/llama-4-maverick-17b-128e-instruct',
+    'claude-haiku-4-5-20251001':   'meta-llama/llama-4-scout-17b-16e-instruct',
+}
 HTML_FILE     = 'hloomberg.html'
 
 # AI_MODE: full=전체AI(KST 08:00), partial=종합+TOP10(KST 20:00), ''=없음(매 5분)
 AI_MODE    = os.environ.get('AI_MODE', '').strip().lower()
+
+# 최초 실행 감지: hloomberg.html에 데이터가 없으면 full 모드 강제
+def _is_first_run():
+    try:
+        with open(HTML_FILE, encoding='utf-8') as f:
+            html = f.read()
+        # TICKS=[] 이면 데이터 없는 초기 상태
+        return 'const TICKS=[];' in html or 'const TICKS=[]' in html
+    except:
+        return True
+
+if not AI_MODE and _is_first_run():
+    AI_MODE = 'full'
+    print('[최초실행 감지] AI_MODE=full 강제 적용')
+
 STOCK_MODE = (AI_MODE == 'full')             # 상세분석: full만
 AI_FULL    = (AI_MODE == 'full')             # 이슈/원자재/TOP10: full만
 AI_PARTIAL = (AI_MODE in ('full','partial')) # 종합분석/TOP10: full+partial
@@ -1455,19 +1480,45 @@ def parse_issues_json(text):
     return []
 
 
-def call_claude(model, system, user, max_tokens=3000):
-    if not ANTHROPIC_KEY:
-        raise Exception('No ANTHROPIC_API_KEY')
-    resp = requests.post(
-        'https://api.anthropic.com/v1/messages',
-        headers={'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json'},
-        json={'model': model, 'max_tokens': max_tokens, 'system': system, 'messages': [{'role': 'user', 'content': user}]},
-        timeout=120,
-    )
-    if not resp.ok:
-        raise Exception(f'Claude HTTP {resp.status_code}: {resp.text[:200]}')
-    raw = resp.json()['content'][0]['text'].strip()
+def call_ai(model, system, user, max_tokens=3000):
+    """Claude 또는 Groq API 호출 (AI_PROVIDER 환경변수로 선택)"""
+    if AI_PROVIDER == 'groq':
+        if not GROQ_KEY:
+            raise Exception('No GROQ_API_KEY')
+        groq_model = GROQ_MODEL_MAP.get(model, 'meta-llama/llama-4-maverick-17b-128e-instruct')
+        resp = requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
+            json={
+                'model': groq_model,
+                'max_tokens': max_tokens,
+                'messages': [
+                    {'role': 'system', 'content': system},
+                    {'role': 'user',   'content': user},
+                ],
+            },
+            timeout=120,
+        )
+        if not resp.ok:
+            raise Exception(f'Groq HTTP {resp.status_code}: {resp.text[:200]}')
+        raw = resp.json()['choices'][0]['message']['content'].strip()
+    else:
+        if not ANTHROPIC_KEY:
+            raise Exception('No ANTHROPIC_API_KEY')
+        resp = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json'},
+            json={'model': model, 'max_tokens': max_tokens, 'system': system, 'messages': [{'role': 'user', 'content': user}]},
+            timeout=120,
+        )
+        if not resp.ok:
+            raise Exception(f'Claude HTTP {resp.status_code}: {resp.text[:200]}')
+        raw = resp.json()['content'][0]['text'].strip()
     return re.sub(r'^```(?:json)?', '', raw).rstrip('`').strip()
+
+# 하위 호환 alias
+def call_claude(model, system, user, max_tokens=3000):
+    return call_ai(model, system, user, max_tokens)
 
 def translate_titles(items):
     to_tr = [(i, n) for i, n in enumerate(items) if not re.search(r'[가-힣]', n['title'])]
@@ -2334,6 +2385,20 @@ if TG_BOT:
             print('\n[Telegram] 알림 조건 없음 (정기요약 대기중)')
 else:
     print('\n[Telegram] TELEGRAM_BOT_TOKEN 미설정 — 스킵')
+
+# GROQ_KEY를 HTML에 주입 (브라우저 AI 호출용)
+if GROQ_KEY:
+    html = html.replace('Bearer ##GROQ_KEY##', f'Bearer {GROQ_KEY}')
+else:
+    html = html.replace('Bearer ##GROQ_KEY##', 'Bearer ')
+
+# AI_PROVIDER 기본값을 HTML에 반영
+provider_default = 'groq' if (AI_PROVIDER == 'groq' and GROQ_KEY) else 'claude'
+html = re.sub(
+    r"localStorage\.getItem\('hloomberg_ai_provider'\) \|\| '[^']*'",
+    f"localStorage.getItem('hloomberg_ai_provider') || '{provider_default}'",
+    html
+)
 
 with open(HTML_FILE, 'w', encoding='utf-8') as f:
     f.write(html)
