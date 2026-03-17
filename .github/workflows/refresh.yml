@@ -82,6 +82,7 @@ jobs:
         run: |
           git config user.name  "hloomberg-bot"
           git config user.email "bot@hloomberg"
-          git add hloomberg.html refresh.py refresh.yml
+          git add hloomberg.html refresh.py
+          git add .github/workflows/refresh.yml 2>/dev/null || true
           git diff --cached --quiet || git commit -m "refresh $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
           git push
