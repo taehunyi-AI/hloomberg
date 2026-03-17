@@ -294,33 +294,57 @@ def fetch_foreign_institution(token, mkt='0001', cls='1'):
     return [x for x in result if x['name']]
 
 def fetch_fluctuation_rank(token, sort='0'):
-    """2순위: 등락률 상위 TOP20 — 하한 제거해서 모든 상승종목 포함"""
-    j = kis_get(
-        '/uapi/domestic-stock/v1/ranking/fluctuation',
-        'FHPST01700000',
-        {'FID_COND_MRKT_DIV_CODE':'J','FID_COND_SCR_DIV_CODE':'20170',
-         'FID_INPUT_ISCD':'0000','FID_RANK_SORT_CLS_CODE':'0000',
-         'FID_INPUT_CNT_1':'20','FID_PRC_CLS_CODE':'0',
-         'FID_INPUT_PRICE_1':'1000','FID_INPUT_PRICE_2':'500000',
-         'FID_VOL_CNT':'10000',                          # 거래량 하한 낮춤
-         'FID_TRGT_CLS_CODE':'0',
-         'FID_TRGT_EXLS_CLS_CODE':'0','FID_DIV_CLS_CODE':'0',
-         'FID_RSFL_RATE1':'0','FID_RSFL_RATE2':'30'},    # 하한 0%로 변경
-        token
-    )
-    if not j: return []
-    result = []
-    for item in j.get('output', []):
-        try:
-            result.append({
-                'name': item.get('hts_kor_isnm','').strip(),
-                'code': item.get('stck_shrn_iscd','').strip(),
-                'rate': float(item.get('prdy_ctrt','0') or 0),
-                'price': int(str(item.get('stck_prpr','0') or 0).replace(',','')),
-                'vol':  int(str(item.get('acml_vol','0') or 0).replace(',','')),
-            })
-        except: pass
-    return [x for x in result if x['name'] and x['code']]
+    """2순위: 등락률 상위 TOP20"""
+    # kis_get 대신 직접 호출 (파라미터 대문자 강제)
+    try:
+        headers = {
+            'Content-Type':  'application/json; charset=utf-8',
+            'authorization': f'Bearer {token}',
+            'appkey':        KIS_APP_KEY,
+            'appsecret':     KIS_APP_SECRET,
+            'tr_id':         'FHPST01700000',
+            'custtype':      'P',
+        }
+        params = {
+            'FID_COND_MRKT_DIV_CODE':  'J',
+            'FID_COND_SCR_DIV_CODE':   '20170',
+            'FID_INPUT_ISCD':          '0000',
+            'FID_RANK_SORT_CLS_CODE':  '0000',
+            'FID_INPUT_CNT_1':         '20',
+            'FID_PRC_CLS_CODE':        '0',
+            'FID_INPUT_PRICE_1':       '1000',
+            'FID_INPUT_PRICE_2':       '500000',
+            'FID_VOL_CNT':             '10000',
+            'FID_TRGT_CLS_CODE':       '0',
+            'FID_TRGT_EXLS_CLS_CODE':  '0',
+            'FID_DIV_CLS_CODE':        '0',
+            'FID_RSFL_RATE1':          '0',
+            'FID_RSFL_RATE2':          '30',
+        }
+        r = SESS.get(f'{KIS_BASE_URL}/uapi/domestic-stock/v1/ranking/fluctuation',
+                     headers=headers, params=params, timeout=8)
+        if not r.ok:
+            print(f'    등락률 HTTP {r.status_code}')
+            return []
+        j = r.json()
+        if j.get('rt_cd') != '0':
+            print(f'    등락률 오류: {j.get("rt_cd")} {j.get("msg1","")[:40]}')
+            return []
+        result = []
+        for item in j.get('output', []):
+            try:
+                result.append({
+                    'name':  item.get('hts_kor_isnm','').strip(),
+                    'code':  item.get('stck_shrn_iscd','').strip(),
+                    'rate':  float(item.get('prdy_ctrt','0') or 0),
+                    'price': int(str(item.get('stck_prpr','0') or 0).replace(',','')),
+                    'vol':   int(str(item.get('acml_vol','0') or 0).replace(',','')),
+                })
+            except: pass
+        return [x for x in result if x['name'] and x['code']]
+    except Exception as e:
+        print(f'    등락률 예외: {e}')
+        return []
 
 def fetch_volume_rank(token):
     """3순위: 거래량 상위 TOP20"""
