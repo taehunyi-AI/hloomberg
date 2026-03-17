@@ -93,224 +93,6 @@ KIS_APP_SECRET = os.environ.get('KIS_APP_SECRET', '')
 KIS_TOKEN_FILE = '/tmp/kis_token.json'   # GitHub Actions 임시 파일 (Actions 캐시로 24h 재사용)
 KIS_BASE_URL   = 'https://openapi.koreainvestment.com:9443'
 
-# KIS 담당 종목 (KOSPI/KOSDAQ 지수 + 국내 스윙종목)
-KIS_STOCK_CODES = {
-    'KOSPI':    ('U', 'FID_COND_MRKT_DIV_CODE', '0001'),  # 지수 특수처리
-    'KOSDAQ':   ('U', 'FID_COND_MRKT_DIV_CODE', '1001'),
-    '005930':   'SAMSUNG',    # 삼성전자
-    '000660':   'SKHYNIX',    # SK하이닉스
-    '012450':   'HANWHA_AE',  # 한화에어로
-    '079550':   'LIG',        # LIG넥스원
-    '015760':   'KEPCO',      # 한국전력
-    '010950':   'SOIL',       # S-Oil
-    '008730':   'KARBON',     # 한국카본
-    '036460':   'KOGAS',      # 한국가스공사
-    '207940':   'SAMSUNGBIO', # 삼성바이오
-}
-
-def kis_get_token():
-    """KIS access_token 관리 — 유효하면 재사용, 만료시만 재발급"""
-    if not KIS_APP_KEY or not KIS_APP_SECRET:
-        return None
-    # 캐시 파일 확인
-    try:
-        with open(KIS_TOKEN_FILE, 'r') as f:
-            cached = json.load(f)
-        expire_dt = datetime.fromisoformat(cached.get('access_token_token_expired', '2000-01-01'))
-        expire_dt = expire_dt.replace(tzinfo=KST) if expire_dt.tzinfo is None else expire_dt
-        # 만료 1시간 전까지 재사용
-        if NOW < expire_dt - timedelta(hours=1):
-            print(f'  KIS 토큰 재사용 (만료: {expire_dt.strftime("%m/%d %H:%M")})')
-            return cached['access_token']
-    except Exception:
-        pass
-    # 신규 발급
-    try:
-        resp = SESS.post(
-            f'{KIS_BASE_URL}/oauth2/tokenP',
-            json={'grant_type': 'client_credentials',
-                  'appkey': KIS_APP_KEY, 'appsecret': KIS_APP_SECRET},
-            timeout=10
-        )
-        if not resp.ok:
-            print(f'  KIS 토큰 발급 실패: {resp.status_code}')
-            return None
-        data = resp.json()
-        token = data.get('access_token')
-        if not token:
-            print(f'  KIS 토큰 없음: {data}')
-            return None
-        # 캐시 저장 (토큰값은 파일에만, HTML에 절대 노출 안 함)
-        with open(KIS_TOKEN_FILE, 'w') as f:
-            json.dump(data, f)
-        print(f'  KIS 토큰 신규 발급 OK')
-        return token
-    except Exception as e:
-        print(f'  KIS 토큰 발급 오류: {e}')
-        return None
-
-def fetch_kis_price(code, token):
-    """KIS REST — 국내주식 현재가 조회 (TR: FHKST01010100)"""
-    try:
-        headers = {
-            'Content-Type':   'application/json; charset=utf-8',
-            'authorization':  f'Bearer {token}',
-            'appkey':         KIS_APP_KEY,
-            'appsecret':      KIS_APP_SECRET,
-            'tr_id':          'FHKST01010100',
-            'custtype':       'P',
-        }
-        params = {
-            'FID_COND_MRKT_DIV_CODE': 'J',
-            'FID_INPUT_ISCD':         code,
-        }
-        r = SESS.get(
-            f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price',
-            headers=headers, params=params, timeout=6
-        )
-        if not r.ok:
-            print(f'    KIS 종목 {code} HTTP {r.status_code}')
-            return None
-        j = r.json()
-        rt = j.get('rt_cd', '')
-        if rt != '0':
-            msg = j.get('msg1', '')[:50]
-            print(f'    KIS 종목 {code} 오류: rt_cd={rt} {msg}')
-            return None
-        d = j.get('output', {})
-        p  = float(d.get('stck_prpr', 0) or 0)
-        c  = float(d.get('prdy_ctrt', 0) or 0)
-        p0 = float(d.get('stck_sdpr', 0) or 0)
-        if p > 0:
-            return {'p': p, 'c': c, 'p0': p0, 'src': 'KIS'}
-        print(f'    KIS 종목 {code} 가격 0 (장 마감/데이터 없음)')
-    except Exception as e:
-        print(f'    KIS 종목 {code} 예외: {e}')
-    return None
-
-def fetch_kis_index(market_code, token):
-    """KIS REST — 지수 현재가 조회 (KOSPI/KOSDAQ)"""
-    try:
-        headers = {
-            'Content-Type':  'application/json',
-            'authorization': f'Bearer {token}',
-            'appkey':        KIS_APP_KEY,
-            'appsecret':     KIS_APP_SECRET,
-            'tr_id':         'FHPUP02100000',   # 국내업종지수
-        }
-        params = {
-            'FID_COND_MRKT_DIV_CODE': 'U',
-            'FID_INPUT_ISCD': market_code,      # 0001=KOSPI, 1001=KOSDAQ
-        }
-        r = SESS.get(
-            f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-index-price',
-            headers=headers, params=params, timeout=6
-        )
-        if not r.ok: return None
-        d = r.json().get('output', {})
-        p = float(d.get('bstp_nmix_prpr', 0) or 0)   # 현재 지수
-        c = float(d.get('bstp_nmix_prdy_ctrt', 0) or 0)  # 전일대비율
-        if p > 0:
-            return {'p': p, 'c': c, 'src': 'KIS'}
-    except Exception as e:
-        pass
-    return None
-
-# KIS 시세 데이터 (종목코드 → price dict)
-kis_stock_data = {}
-PRICE_DATA = {}   # ← Yahoo 수집 전 KIS가 먼저 채움
-
-kis_token = None
-if KIS_APP_KEY and KIS_APP_SECRET:
-    print(f'\n[KIS] 토큰 확인...')
-    kis_token = kis_get_token()
-
-if kis_token:
-    print(f'[KIS] 국내 시세 수집...')
-    # KOSPI 지수
-    r = fetch_kis_index('0001', kis_token)
-    if r:
-        PRICE_DATA['KOSPI'] = r
-        print(f"  OK  KOSPI       {r['p']:>10.2f}  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-    time.sleep(0.05)
-    # KOSDAQ 지수
-    r = fetch_kis_index('1001', kis_token)
-    if r:
-        PRICE_DATA['KOSDAQ'] = r
-        print(f"  OK  KOSDAQ      {r['p']:>10.2f}  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-    time.sleep(0.05)
-    # 스윙종목 9개
-    stock_code_map = {
-        '005930': 'KIS_005930', '000660': 'KIS_000660',
-        '012450': 'KIS_012450', '079550': 'KIS_079550',
-        '015760': 'KIS_015760', '010950': 'KIS_010950',
-        '008730': 'KIS_008730', '036460': 'KIS_036460',
-        '207940': 'KIS_207940',
-    }
-    for code, key in stock_code_map.items():
-        r = fetch_kis_price(code, kis_token)
-        if r:
-            kis_stock_data[code] = r
-            print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-        time.sleep(0.05)
-    print(f'  KIS 완료: 지수 + {len(kis_stock_data)}개 종목')
-
-    # ── 1순위: 외국인/기관 순매수 TOP10
-    print('[KIS 수급] 외국인/기관 순매수 수집...')
-    foreign_buy  = fetch_foreign_institution(kis_token, '0001', '1')   # 코스피 외국인
-    institution_buy = fetch_foreign_institution(kis_token, '0001', '2') # 코스피 기관
-    foreign_sell = fetch_foreign_institution(kis_token, '0001', '1')   # (순매도는 같은 API, sort 방향만 다름)
-    print(f'  외국인 순매수: {len(foreign_buy)}개 / 기관 순매수: {len(institution_buy)}개')
-    time.sleep(0.3)
-
-    # ── 2순위: 등락률 상위
-    print('[KIS 순위] 등락률 상위 수집...')
-    fluctuation_rank = fetch_fluctuation_rank(kis_token)
-    print(f'  등락률 상위: {len(fluctuation_rank)}개')
-    time.sleep(0.3)
-
-    # ── 3순위: 거래량 상위
-    print('[KIS 순위] 거래량 상위 수집...')
-    volume_rank_data = fetch_volume_rank(kis_token)
-    print(f'  거래량 상위: {len(volume_rank_data)}개')
-    time.sleep(0.3)
-
-else:
-    if KIS_APP_KEY:
-        print('[KIS] 토큰 발급 실패 — Yahoo fallback')
-    else:
-        print('[KIS] KIS_APP_KEY 미설정 — Yahoo fallback')
-    foreign_buy = []; institution_buy = []; fluctuation_rank = []; volume_rank_data = []
-
-TICKERS = {
-    'KOSPI':   '^KS11',   'KOSDAQ':  '^KQ11',
-    'BRENT':   'BZ=F',    'WTI':     'CL=F',
-    'GOLD':    'GC=F',    'NATGAS':  'NG=F',
-    'SP500':   '^GSPC',   'NIKKEI':  '^N225',
-    'VIX':     '^VIX',    'UST10':   '^TNX',
-    'USDKRW':  'USDKRW=X',
-    'SILVER':  'SI=F',    'COPPER':  'HG=F',
-    'LITHIUM': 'LIT',
-    'URA':     'URA',
-}
-TICK_META = {
-    'KOSPI':   {'l':'KOSPI',    'u':'',  'dp':0},
-    'KOSDAQ':  {'l':'KOSDAQ',   'u':'',  'dp':2},
-    'BRENT':   {'l':'BRENT',    'u':'$', 'dp':2},
-    'WTI':     {'l':'WTI',      'u':'$', 'dp':2},
-    'GOLD':    {'l':'GOLD',     'u':'$', 'dp':0},
-    'NATGAS':  {'l':'NAT GAS',  'u':'$', 'dp':3},
-    'SP500':   {'l':'S&P500',   'u':'',  'dp':2},
-    'NIKKEI':  {'l':'NIKKEI',   'u':'',  'dp':0},
-    'VIX':     {'l':'VIX',      'u':'',  'dp':2},
-    'UST10':   {'l':'10Y UST',  'u':'',  'dp':3},
-    'USDKRW':  {'l':'USD/KRW',  'u':'',  'dp':2},
-    'SILVER':  {'l':'SILVER',   'u':'$', 'dp':2},
-    'COPPER':  {'l':'COPPER',   'u':'$', 'dp':3},
-    'LITHIUM': {'l':'LITHIUM',  'u':'$', 'dp':2},
-    'URA':     {'l':'URANIUM',  'u':'$', 'dp':2},
-}
-
 
 def kis_get(url_path, tr_id, params, token):
     """KIS REST GET 공통 헬퍼"""
@@ -646,6 +428,225 @@ def make_supply_demand_js(foreign_buy, institution_buy, fluctuation_rank, volume
         f'const KIS_VOLUME_RANK={fmt_list(volume_rank_data)};',
     ]
     return '\n' + '\n'.join(lines) + '\n'
+
+
+# KIS 담당 종목 (KOSPI/KOSDAQ 지수 + 국내 스윙종목)
+KIS_STOCK_CODES = {
+    'KOSPI':    ('U', 'FID_COND_MRKT_DIV_CODE', '0001'),  # 지수 특수처리
+    'KOSDAQ':   ('U', 'FID_COND_MRKT_DIV_CODE', '1001'),
+    '005930':   'SAMSUNG',    # 삼성전자
+    '000660':   'SKHYNIX',    # SK하이닉스
+    '012450':   'HANWHA_AE',  # 한화에어로
+    '079550':   'LIG',        # LIG넥스원
+    '015760':   'KEPCO',      # 한국전력
+    '010950':   'SOIL',       # S-Oil
+    '008730':   'KARBON',     # 한국카본
+    '036460':   'KOGAS',      # 한국가스공사
+    '207940':   'SAMSUNGBIO', # 삼성바이오
+}
+
+def kis_get_token():
+    """KIS access_token 관리 — 유효하면 재사용, 만료시만 재발급"""
+    if not KIS_APP_KEY or not KIS_APP_SECRET:
+        return None
+    # 캐시 파일 확인
+    try:
+        with open(KIS_TOKEN_FILE, 'r') as f:
+            cached = json.load(f)
+        expire_dt = datetime.fromisoformat(cached.get('access_token_token_expired', '2000-01-01'))
+        expire_dt = expire_dt.replace(tzinfo=KST) if expire_dt.tzinfo is None else expire_dt
+        # 만료 1시간 전까지 재사용
+        if NOW < expire_dt - timedelta(hours=1):
+            print(f'  KIS 토큰 재사용 (만료: {expire_dt.strftime("%m/%d %H:%M")})')
+            return cached['access_token']
+    except Exception:
+        pass
+    # 신규 발급
+    try:
+        resp = SESS.post(
+            f'{KIS_BASE_URL}/oauth2/tokenP',
+            json={'grant_type': 'client_credentials',
+                  'appkey': KIS_APP_KEY, 'appsecret': KIS_APP_SECRET},
+            timeout=10
+        )
+        if not resp.ok:
+            print(f'  KIS 토큰 발급 실패: {resp.status_code}')
+            return None
+        data = resp.json()
+        token = data.get('access_token')
+        if not token:
+            print(f'  KIS 토큰 없음: {data}')
+            return None
+        # 캐시 저장 (토큰값은 파일에만, HTML에 절대 노출 안 함)
+        with open(KIS_TOKEN_FILE, 'w') as f:
+            json.dump(data, f)
+        print(f'  KIS 토큰 신규 발급 OK')
+        return token
+    except Exception as e:
+        print(f'  KIS 토큰 발급 오류: {e}')
+        return None
+
+def fetch_kis_price(code, token):
+    """KIS REST — 국내주식 현재가 조회 (TR: FHKST01010100)"""
+    try:
+        headers = {
+            'Content-Type':   'application/json; charset=utf-8',
+            'authorization':  f'Bearer {token}',
+            'appkey':         KIS_APP_KEY,
+            'appsecret':      KIS_APP_SECRET,
+            'tr_id':          'FHKST01010100',
+            'custtype':       'P',
+        }
+        params = {
+            'FID_COND_MRKT_DIV_CODE': 'J',
+            'FID_INPUT_ISCD':         code,
+        }
+        r = SESS.get(
+            f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price',
+            headers=headers, params=params, timeout=6
+        )
+        if not r.ok:
+            print(f'    KIS 종목 {code} HTTP {r.status_code}')
+            return None
+        j = r.json()
+        rt = j.get('rt_cd', '')
+        if rt != '0':
+            msg = j.get('msg1', '')[:50]
+            print(f'    KIS 종목 {code} 오류: rt_cd={rt} {msg}')
+            return None
+        d = j.get('output', {})
+        p  = float(d.get('stck_prpr', 0) or 0)
+        c  = float(d.get('prdy_ctrt', 0) or 0)
+        p0 = float(d.get('stck_sdpr', 0) or 0)
+        if p > 0:
+            return {'p': p, 'c': c, 'p0': p0, 'src': 'KIS'}
+        print(f'    KIS 종목 {code} 가격 0 (장 마감/데이터 없음)')
+    except Exception as e:
+        print(f'    KIS 종목 {code} 예외: {e}')
+    return None
+
+def fetch_kis_index(market_code, token):
+    """KIS REST — 지수 현재가 조회 (KOSPI/KOSDAQ)"""
+    try:
+        headers = {
+            'Content-Type':  'application/json',
+            'authorization': f'Bearer {token}',
+            'appkey':        KIS_APP_KEY,
+            'appsecret':     KIS_APP_SECRET,
+            'tr_id':         'FHPUP02100000',   # 국내업종지수
+        }
+        params = {
+            'FID_COND_MRKT_DIV_CODE': 'U',
+            'FID_INPUT_ISCD': market_code,      # 0001=KOSPI, 1001=KOSDAQ
+        }
+        r = SESS.get(
+            f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-index-price',
+            headers=headers, params=params, timeout=6
+        )
+        if not r.ok: return None
+        d = r.json().get('output', {})
+        p = float(d.get('bstp_nmix_prpr', 0) or 0)   # 현재 지수
+        c = float(d.get('bstp_nmix_prdy_ctrt', 0) or 0)  # 전일대비율
+        if p > 0:
+            return {'p': p, 'c': c, 'src': 'KIS'}
+    except Exception as e:
+        pass
+    return None
+
+# KIS 시세 데이터 (종목코드 → price dict)
+kis_stock_data = {}
+PRICE_DATA = {}   # ← Yahoo 수집 전 KIS가 먼저 채움
+
+kis_token = None
+if KIS_APP_KEY and KIS_APP_SECRET:
+    print(f'\n[KIS] 토큰 확인...')
+    kis_token = kis_get_token()
+
+if kis_token:
+    print(f'[KIS] 국내 시세 수집...')
+    # KOSPI 지수
+    r = fetch_kis_index('0001', kis_token)
+    if r:
+        PRICE_DATA['KOSPI'] = r
+        print(f"  OK  KOSPI       {r['p']:>10.2f}  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
+    time.sleep(0.05)
+    # KOSDAQ 지수
+    r = fetch_kis_index('1001', kis_token)
+    if r:
+        PRICE_DATA['KOSDAQ'] = r
+        print(f"  OK  KOSDAQ      {r['p']:>10.2f}  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
+    time.sleep(0.05)
+    # 스윙종목 9개
+    stock_code_map = {
+        '005930': 'KIS_005930', '000660': 'KIS_000660',
+        '012450': 'KIS_012450', '079550': 'KIS_079550',
+        '015760': 'KIS_015760', '010950': 'KIS_010950',
+        '008730': 'KIS_008730', '036460': 'KIS_036460',
+        '207940': 'KIS_207940',
+    }
+    for code, key in stock_code_map.items():
+        r = fetch_kis_price(code, kis_token)
+        if r:
+            kis_stock_data[code] = r
+            print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
+        time.sleep(0.05)
+    print(f'  KIS 완료: 지수 + {len(kis_stock_data)}개 종목')
+
+    # ── 1순위: 외국인/기관 순매수 TOP10
+    print('[KIS 수급] 외국인/기관 순매수 수집...')
+    foreign_buy  = fetch_foreign_institution(kis_token, '0001', '1')   # 코스피 외국인
+    institution_buy = fetch_foreign_institution(kis_token, '0001', '2') # 코스피 기관
+    foreign_sell = fetch_foreign_institution(kis_token, '0001', '1')   # (순매도는 같은 API, sort 방향만 다름)
+    print(f'  외국인 순매수: {len(foreign_buy)}개 / 기관 순매수: {len(institution_buy)}개')
+    time.sleep(0.3)
+
+    # ── 2순위: 등락률 상위
+    print('[KIS 순위] 등락률 상위 수집...')
+    fluctuation_rank = fetch_fluctuation_rank(kis_token)
+    print(f'  등락률 상위: {len(fluctuation_rank)}개')
+    time.sleep(0.3)
+
+    # ── 3순위: 거래량 상위
+    print('[KIS 순위] 거래량 상위 수집...')
+    volume_rank_data = fetch_volume_rank(kis_token)
+    print(f'  거래량 상위: {len(volume_rank_data)}개')
+    time.sleep(0.3)
+
+else:
+    if KIS_APP_KEY:
+        print('[KIS] 토큰 발급 실패 — Yahoo fallback')
+    else:
+        print('[KIS] KIS_APP_KEY 미설정 — Yahoo fallback')
+    foreign_buy = []; institution_buy = []; fluctuation_rank = []; volume_rank_data = []
+
+TICKERS = {
+    'KOSPI':   '^KS11',   'KOSDAQ':  '^KQ11',
+    'BRENT':   'BZ=F',    'WTI':     'CL=F',
+    'GOLD':    'GC=F',    'NATGAS':  'NG=F',
+    'SP500':   '^GSPC',   'NIKKEI':  '^N225',
+    'VIX':     '^VIX',    'UST10':   '^TNX',
+    'USDKRW':  'USDKRW=X',
+    'SILVER':  'SI=F',    'COPPER':  'HG=F',
+    'LITHIUM': 'LIT',
+    'URA':     'URA',
+}
+TICK_META = {
+    'KOSPI':   {'l':'KOSPI',    'u':'',  'dp':0},
+    'KOSDAQ':  {'l':'KOSDAQ',   'u':'',  'dp':2},
+    'BRENT':   {'l':'BRENT',    'u':'$', 'dp':2},
+    'WTI':     {'l':'WTI',      'u':'$', 'dp':2},
+    'GOLD':    {'l':'GOLD',     'u':'$', 'dp':0},
+    'NATGAS':  {'l':'NAT GAS',  'u':'$', 'dp':3},
+    'SP500':   {'l':'S&P500',   'u':'',  'dp':2},
+    'NIKKEI':  {'l':'NIKKEI',   'u':'',  'dp':0},
+    'VIX':     {'l':'VIX',      'u':'',  'dp':2},
+    'UST10':   {'l':'10Y UST',  'u':'',  'dp':3},
+    'USDKRW':  {'l':'USD/KRW',  'u':'',  'dp':2},
+    'SILVER':  {'l':'SILVER',   'u':'$', 'dp':2},
+    'COPPER':  {'l':'COPPER',   'u':'$', 'dp':3},
+    'LITHIUM': {'l':'LITHIUM',  'u':'$', 'dp':2},
+    'URA':     {'l':'URANIUM',  'u':'$', 'dp':2},
+}
 
 # 원자재 90일 차트 데이터 수집
 CMDTY_CHART_SYMS = {
