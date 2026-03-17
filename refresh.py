@@ -24,10 +24,9 @@ AI_PROVIDER = os.environ.get('AI_PROVIDER', 'claude').strip().lower()
 
 # Groq 모델 매핑 (claude 모델명 → groq 모델명)
 GROQ_MODEL_MAP = {
-    # 2026-02-20: llama-4-maverick deprecated → openai/gpt-oss-120b
-    # 2026-02-10: llama-4-scout deprecated → openai/gpt-oss-20b
-    'claude-sonnet-4-20250514':    'openai/gpt-oss-120b',   # 고품질 분석 (sonnet 대체)
-    'claude-haiku-4-5-20251001':   'openai/gpt-oss-20b',    # 빠른 요약 (haiku 대체)
+    # 2026-03-17: openai/gpt-oss-120b/20b → Groq 미지원 확인, 실제 가용 모델로 교체
+    'claude-sonnet-4-20250514':    'llama-3.3-70b-versatile',  # 고품질 분석 (sonnet 대체)
+    'claude-haiku-4-5-20251001':   'llama-3.1-8b-instant',     # 빠른 요약 (haiku 대체)
 }
 HTML_FILE     = 'hloomberg.html'
 
@@ -1495,7 +1494,7 @@ def call_ai(model, system, user, max_tokens=3000):
     if AI_PROVIDER == 'groq':
         if not GROQ_KEY:
             raise Exception('No GROQ_API_KEY')
-        groq_model = GROQ_MODEL_MAP.get(model, 'openai/gpt-oss-120b')
+        groq_model = GROQ_MODEL_MAP.get(model, 'llama-3.3-70b-versatile')
 
         # TPM 한도 보호: 마지막 호출로부터 최소 간격 확보
         elapsed = time.time() - _groq_last_call
@@ -1740,81 +1739,167 @@ if ANTHROPIC_KEY and AI_PARTIAL:
         except Exception as e:
             print(f'  원자재 AI FAIL: {e}')
 
-    # 5-4. 스윙종목 AI TOP10 선정 + 빠른 신호 (매 실행, Sonnet)
+    # 5-4. 스윙종목 AI TOP10 선정 — 패턴A 4단계 체인드 리서치
+    # Step1: 뉴스 시그널 추출 → Step2: 후보 20개 선별 → Step3: 리스크 필터링 → Step4: 매매전략 확정
     swing_quick = {}
-    swing_top10 = []   # AI가 선정한 TOP10 — HTML STOCKS 패치용
+    swing_top10 = []
     if AI_FULL:
         try:
-            print('  [5/4+] 스윙종목 AI TOP10 선정...')
-    
-            # 종목코드 → KIS 실시간 가격 맵 (참고용)
+            print('  [5/4] 패턴A 체인드 리서치 시작...')
+
             kis_price_str = ' | '.join([
                 f"{code}:{int(d['p']):,}원({'+' if d['c']>=0 else ''}{d['c']:.2f}%)"
                 for code, d in kis_stock_data.items()
             ]) if kis_stock_data else '장 마감'
-    
-            # 테마/색상 코드 매핑 (Claude 프롬프트용)
+
             theme_guide = (
-                'tc(테마색): tsm=반도체/IT/AI, tdf=방산/우주, ten=에너지/정유, '
+                'tc: tsm=반도체/IT/AI, tdf=방산/우주, ten=에너지/정유, '
                 'trv=역발상/가치, tlg=LNG/소재, tph=제약/바이오\n'
-                'ac(매매색): aby=매수/분할매수, aho=보유, awa=관심/대기, awn=주의/회피'
+                'ac: aby=매수/분할매수, aho=보유, awa=관심/대기, awn=주의/회피'
             )
-    
+
             issue_summary = '\n'.join([
                 f"- {i.get('title','')} [{i.get('impact','')}]"
                 for i in (global_issues + domestic_issues)[:10]
             ])
-            top10_resp = call_claude(
-                'claude-sonnet-4-20250514',
-                '한국주식 전문 스윙트레이딩 애널리스트. 한국어. 음슴체. 존댓말 금지. JSON만 출력.',
-                f'[현재시세]\n{price_str}\n\n'
-                f'[KIS 실시간 종목시세]\n{kis_price_str}\n\n'
-                f'[국내뉴스]\n{kr_str[:800]}\n\n'
-                f'[글로벌 이슈]\n{issue_summary}\n\n'
-                f'현재 시장상황 기반 KOSPI/KOSDAQ 스윙트레이딩 추천종목 10개 선정.\n'
-                f'반드시 종목코드(6자리) 포함. 종목당 1~2문장 근거.\n\n'
-                f'{theme_guide}\n\n'
-                f'출력형식(JSON 배열만):\n'
-                f'[{{"name":"삼성전자","code":"005930","mkt":"KOSPI","th":"반도체","tc":"tsm",'
-                f'"act":"분할매수","ac":"aby","risk":2,"desc":"목표가 XX만원. 근거 1문장."}},...]\n'
-                f'risk: 1=매우낮음 2=낮음 3=중간 4=높음 5=매우높음',
-                3000
-            )
-            top10_list = extract_json_array(top10_resp)
-            if not top10_list:
-                raise ValueError('TOP10 JSON 파싱 실패')
-            swing_top10 = [x for x in top10_list if isinstance(x, dict) and x.get('name') and x.get('code')][:10]
-            print(f'  스윙 TOP10 선정: {len(swing_top10)}개')
-    
-            # 빠른 신호도 TOP10 기준으로 생성
-            swing_prompt = '\n'.join([
-                f"{s['name']}({s.get('th','')}/{s.get('mkt','')}): {s.get('act','')} — {s.get('desc','')}"
-                for s in swing_top10
-            ])
-            swing_resp = call_claude(
+
+            # ── Step 1: 뉴스·이슈에서 종목별 시그널 추출
+            print('    Step1: 뉴스 시그널 추출...')
+            step1_resp = call_claude(
                 'claude-haiku-4-5-20251001',
-                '한국주식 전문 애널리스트. 한국어. 음슴체. 존댓말 금지.',
-                f'[시세] {price_str}\n[뉴스] {kr_str[:400]}\n\n'
-                f'아래 종목 각각의 오늘 투자의견:\n{swing_prompt}\n\n'
-                f'출력형식: [{{"name":"삼성전자","signal":"매수/관망/매도","reason":"1줄이유","target":0,"stop":0}},...]\n'
-                f'JSON만 출력.',
+                '한국주식 시그널 추출 전문가. 한국어. JSON만 출력. 존댓말 금지.',
+                f'[국내뉴스]\n{kr_str}\n\n'
+                f'[글로벌 이슈]\n{issue_summary}\n\n'
+                f'[현재시세]\n{price_str}\n\n'
+                f'뉴스와 이슈에서 종목별 매수/매도 시그널 추출. 명시적 언급 종목 우선, 섹터 수혜 종목 포함.\n\n'
+                f'출력형식(JSON 배열):\n'
+                f'[{{"name":"종목명","code":"123456","signal":"매수/매도/중립",'
+                f'"reason":"시그널 근거 1문장","sector":"섹터명","urgency":"고/중/저"}},...]',
                 2000
             )
-            swing_list2 = extract_json_array(swing_resp) or []
-            for item in swing_list2:
-                nm = item.get('name','')
+            step1_signals = extract_json_array(step1_resp) or []
+            print(f'    Step1 완료: {len(step1_signals)}개 시그널')
+
+            # ── Step 2: 시그널 + KIS 수급 결합, 후보 20개 선별
+            print('    Step2: 후보 20개 선별...')
+            step1_str = '\n'.join([
+                f"- {s.get('name','')}({s.get('code','')}) {s.get('signal','')} [{s.get('urgency','')}]: {s.get('reason','')}"
+                for s in step1_signals[:30]
+            ]) or '시그널 없음'
+
+            foreign_str = '\n'.join([
+                f"  외국인순매수: {f.get('name','')} {f.get('net_amt',0):,}백만원"
+                for f in foreign_buy[:5]
+            ]) if foreign_buy else '데이터 없음'
+            inst_str = '\n'.join([
+                f"  기관순매수: {f.get('name','')} {f.get('net_amt',0):,}백만원"
+                for f in institution_buy[:5]
+            ]) if institution_buy else '데이터 없음'
+            fluct_str = '\n'.join([
+                f"  {r.get('name','')} {r.get('rate',0):+.1f}%"
+                for r in fluctuation_rank[:10]
+            ]) if fluctuation_rank else '데이터 없음'
+
+            step2_resp = call_claude(
+                'claude-sonnet-4-20250514',
+                '한국주식 포트폴리오 매니저. 한국어. JSON만 출력. 음슴체. 존댓말 금지.',
+                f'[Step1 시그널]\n{step1_str}\n\n'
+                f'[KIS 실시간 시세]\n{kis_price_str}\n\n'
+                f'[외국인/기관 수급]\n{foreign_str}\n{inst_str}\n\n'
+                f'[등락률 상위]\n{fluct_str}\n\n'
+                f'시그널 강도·수급·모멘텀 종합해 스윙 후보 20개 선별. 중복 제거, 섹터 분산 고려.\n\n'
+                f'출력형식(JSON 배열):\n'
+                f'[{{"name":"종목명","code":"123456","mkt":"KOSPI/KOSDAQ",'
+                f'"score":85,"signal_strength":"강/중/약","supply_demand":"긍정/중립/부정",'
+                f'"sector":"섹터","reason":"선별 근거"}},...]',
+                2500
+            )
+            step2_candidates = extract_json_array(step2_resp) or []
+            print(f'    Step2 완료: {len(step2_candidates)}개 후보')
+
+            # ── Step 3: 리스크 필터링 → TOP10 확정
+            print('    Step3: 리스크 필터링 → TOP10 확정...')
+            step2_str = '\n'.join([
+                f"- {c.get('name','')}({c.get('code','')}/{c.get('mkt','')}) "
+                f"점수:{c.get('score',0)} 시그널:{c.get('signal_strength','')} "
+                f"수급:{c.get('supply_demand','')} | {c.get('reason','')}"
+                for c in step2_candidates[:20]
+            ]) or '후보 없음'
+
+            vix_val = PRICE_DATA.get('VIX', {}).get('p', 0)
+            brent_val = PRICE_DATA.get('BRENT', {}).get('p', 0)
+            usdkrw_val = PRICE_DATA.get('USDKRW', {}).get('p', 0)
+
+            step3_resp = call_claude(
+                'claude-sonnet-4-20250514',
+                '한국주식 리스크 매니저. 한국어. JSON만 출력. 음슴체. 존댓말 금지.',
+                f'[Step2 후보]\n{step2_str}\n\n'
+                f'[현재 매크로]\n'
+                f'BRENT:{brent_val} USD/KRW:{usdkrw_val} VIX:{vix_val}\n\n'
+                f'[AI 리스크 분석]\n{ai_sections.get("risk","없음")[:300]}\n\n'
+                f'리스크 필터링 기준:\n'
+                f'1. VIX 20 초과시 고위험(risk 4-5) 종목 제외\n'
+                f'2. 동일 섹터 최대 3개\n'
+                f'3. 수급 부정 + 시그널 약 종목 우선 제거\n'
+                f'4. 최종 TOP10 순위순 정렬\n\n'
+                f'{theme_guide}\n\n'
+                f'출력형식(JSON 배열):\n'
+                f'[{{"name":"삼성전자","code":"005930","mkt":"KOSPI","th":"반도체","tc":"tsm",'
+                f'"act":"분할매수","ac":"aby","risk":2,"desc":"체인 분석 근거 1문장."}},...]',
+                2500
+            )
+            top10_list = extract_json_array(step3_resp) or []
+            swing_top10 = [x for x in top10_list if isinstance(x, dict) and x.get('name') and x.get('code')][:10]
+            print(f'    Step3 완료: TOP{len(swing_top10)} 확정')
+
+            # ── Step 4: 종목별 매매전략 생성 (목표가/손절가)
+            print('    Step4: 매매전략 생성...')
+            top10_str = '\n'.join([
+                f"- {s['name']}({s.get('code','')}/{s.get('mkt','')}) "
+                f"의견:{s.get('act','')} 리스크:{s.get('risk',3)} | {s.get('desc','')}"
+                for s in swing_top10
+            ])
+            step4_resp = call_claude(
+                'claude-haiku-4-5-20251001',
+                '한국주식 트레이딩 전략가. 한국어. JSON만 출력. 음슴체. 존댓말 금지.',
+                f'[확정 TOP10]\n{top10_str}\n\n'
+                f'[KIS 실시간 시세]\n{kis_price_str}\n\n'
+                f'현재가 기준 실현 가능한 목표가/손절가 제시.\n\n'
+                f'출력형식(JSON 배열):\n'
+                f'[{{"name":"삼성전자","signal":"매수/관망/매도",'
+                f'"reason":"1줄 근거","target":75000,"stop":68000}},...]',
+                2000
+            )
+            step4_list = extract_json_array(step4_resp) or []
+
+            # swing_quick 구성
+            for item in step4_list:
+                nm = item.get('name', '')
                 if nm:
                     swing_quick[nm] = {
-                        'signal': item.get('signal',''),
-                        'reason': item.get('reason',''),
-                        'target': item.get('target',0),
-                        'stop':   item.get('stop',0),
+                        'signal': item.get('signal', ''),
+                        'reason': item.get('reason', ''),
+                        'target': item.get('target', 0),
+                        'stop':   item.get('stop', 0),
                         'ts':     TS_SHORT
                     }
-            print(f'  스윙 빠른 신호: {len(swing_quick)}개')
-    
+
+            # swing_top10 desc에 목표가/손절가 보강
+            quick_map = {item.get('name', ''): item for item in step4_list}
+            for s in swing_top10:
+                nm = s.get('name', '')
+                if nm in quick_map:
+                    q = quick_map[nm]
+                    tgt = q.get('target', 0)
+                    stp = q.get('stop', 0)
+                    if tgt:
+                        s['desc'] = s.get('desc', '') + f' 목표:{tgt:,} 손절:{stp:,}'
+
+            print(f'  패턴A 완료: TOP{len(swing_top10)} / 신호 {len(swing_quick)}개')
+
         except Exception as e:
-            print(f'  스윙 TOP10 FAIL: {e}')
+            print(f'  패턴A 스윙 FAIL: {e}')
+            import traceback; traceback.print_exc()
             swing_top10 = []
 
 else:
