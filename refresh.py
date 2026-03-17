@@ -18,12 +18,18 @@ from bs4 import BeautifulSoup
 ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 DART_KEY      = os.environ.get('DART_API_KEY', '')
 HTML_FILE     = 'hloomberg.html'
-STOCK_MODE    = os.environ.get('STOCK_MODE', '0') == '1'  # 종목 상세분석 모드
+
+# AI_MODE: full=전체AI(KST 08:00), partial=종합+TOP10(KST 20:00), ''=없음(매 5분)
+AI_MODE    = os.environ.get('AI_MODE', '').strip().lower()
+STOCK_MODE = (AI_MODE == 'full')             # 상세분석: full만
+AI_FULL    = (AI_MODE == 'full')             # 이슈/원자재/TOP10: full만
+AI_PARTIAL = (AI_MODE in ('full','partial')) # 종합분석/TOP10: full+partial
 
 KST = timezone(timedelta(hours=9))
 NOW = datetime.now(KST)
 TS  = NOW.strftime('%Y-%m-%d %H:%M KST')
 TS_SHORT = NOW.strftime('%m/%d %H:%M')
+AI_HOURLY = NOW.minute < 6  # 1시간 주기 (빠른신호/뉴스요약)
 
 # 주말 감지 (0=월 ... 6=일)
 IS_WEEKEND = NOW.weekday() >= 5  # 토(5), 일(6)
@@ -46,7 +52,7 @@ SESS.headers.update({
     'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
 })
 
-mode_label = '[STOCK MODE]' if STOCK_MODE else ''
+mode_label = f'[{AI_MODE.upper()} MODE]' if AI_MODE else ''
 print(f'[{TS}] HLOOMBERG refresh start {mode_label}')
 
 # ─────────────────────────────────────────
@@ -1482,11 +1488,11 @@ def translate_titles(items):
     except Exception as e:
         print(f'  번역 FAIL: {e}')
 
-if ANTHROPIC_KEY:
+if ANTHROPIC_KEY and AI_HOURLY:
     translate_titles(gl_news)
 
 
-if ANTHROPIC_KEY:
+if ANTHROPIC_KEY and AI_PARTIAL:
     # 시세 요약
     price_str = ' | '.join([f"{k}:{fmt_price(v['p'],k)}({'+' if v['c']>=0 else ''}{v['c']:.2f}%)" for k,v in PRICE_DATA.items()])
     # 뉴스 요약 (상위 30개)
@@ -1571,23 +1577,24 @@ if ANTHROPIC_KEY:
         '"drivers":["변수1","변수2","변수3"],"action":"투자시사점"}\n'
         'JSON 배열만 출력. 다른 텍스트 없이. [] 로 감싸서.'
     )
-    try:
-        print('  [2/4] 글로벌 이슈분석...')
-        gt = call_claude('claude-sonnet-4-20250514', '글로벌 매크로 전략가. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지.',
-            f'[시세]\n{price_str}\n[해외뉴스]\n{gl_str}\n\n글로벌 금융시장 핵심 이슈 10개 선정.\n{issue_prompt}', 4000)
-        global_issues = parse_issues_json(gt)
-        print(f'  글로벌 이슈: {len(global_issues)}개')
-    except Exception as e:
-        print(f'  글로벌 이슈 FAIL: {e}')
+    if AI_FULL:
+        try:
+            print('  [2/4] 글로벌 이슈분석...')
+            gt = call_claude('claude-sonnet-4-20250514', '글로벌 매크로 전략가. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지.',
+                f'[시세]\n{price_str}\n[해외뉴스]\n{gl_str}\n\n글로벌 금융시장 핵심 이슈 10개 선정.\n{issue_prompt}', 4000)
+            global_issues = parse_issues_json(gt)
+            print(f'  글로벌 이슈: {len(global_issues)}개')
+        except Exception as e:
+            print(f'  글로벌 이슈 FAIL: {e}')
 
-    try:
-        print('  [3/4] 국내 이슈분석...')
-        dt = call_claude('claude-sonnet-4-20250514', '한국 증시 전문 애널리스트. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지.',
-            f'[시세]\n{price_str}\n[국내뉴스]\n{kr_str}\n[공시]\n{dart_str}\n\n한국 증시/경제 핵심 이슈 10개 선정.\n{issue_prompt}', 4000)
-        domestic_issues = parse_issues_json(dt)
-        print(f'  국내 이슈: {len(domestic_issues)}개')
-    except Exception as e:
-        print(f'  국내 이슈 FAIL: {e}')
+        try:
+            print('  [3/4] 국내 이슈분석...')
+            dt = call_claude('claude-sonnet-4-20250514', '한국 증시 전문 애널리스트. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지.',
+                f'[시세]\n{price_str}\n[국내뉴스]\n{kr_str}\n[공시]\n{dart_str}\n\n한국 증시/경제 핵심 이슈 10개 선정.\n{issue_prompt}', 4000)
+            domestic_issues = parse_issues_json(dt)
+            print(f'  국내 이슈: {len(domestic_issues)}개')
+        except Exception as e:
+            print(f'  국내 이슈 FAIL: {e}')
 
     # 5-3. 원자재 AI 코멘트 (11개 전체, 매 실행)
     CMDTY_AI_LIST = [
@@ -1601,117 +1608,119 @@ if ANTHROPIC_KEY:
         ('URA',     '우라늄(URA ETF)',    'SMR·원전 르네상스·두산에너빌리티·공급제약 분석'),
     ]
     cmdty_ai = {}
-    try:
-        print('  [4/4] 원자재 AI 코멘트...')
-        cmdty_prompt = '\n'.join([
-            f"- {name}({sym}): 현재가={PRICE_DATA.get(sym,{}).get('p','N/A')} | {desc}"
-            for sym, name, desc in CMDTY_AI_LIST
-        ])
-        cmdty_resp = call_claude(
-            'claude-sonnet-4-20250514',
-            '글로벌 원자재 전문 애널리스트. 한국어. 음슴체(~임,~함,~됨). 존댓말 금지. 각 원자재별 단기 방향성·매매전략·한국 관련주 영향을 2~3문장으로.',
-            f'[현재시세]\n{price_str}\n[해외뉴스요약]\n{gl_str[:800]}\n\n'
-            f'아래 원자재 각각에 대해 JSON 배열로 분석:\n{cmdty_prompt}\n\n'
-            f'출력형식: [{{"sym":"BRENT","comment":"분석내용","direction":"상승/하락/횡보","kr_stocks":"관련주"}},...]\n'
-            f'JSON만 출력, 다른 텍스트 없이.',
-            3000
-        )
-        # JSON 파싱
-        raw = re.sub(r'^```(?:json)?', '', cmdty_resp).rstrip('`').strip()
-        cmdty_list = json.loads(raw)
-        for item in cmdty_list:
-            sym = item.get('sym','')
-            if sym:
-                cmdty_ai[sym] = {
-                    'comment':   item.get('comment',''),
-                    'direction': item.get('direction',''),
-                    'kr_stocks': item.get('kr_stocks',''),
-                    'ts':        TS_SHORT
-                }
-        print(f'  원자재 AI: {len(cmdty_ai)}개')
-    except Exception as e:
-        print(f'  원자재 AI FAIL: {e}')
+    if AI_FULL:
+        try:
+            print('  [4/4] 원자재 AI 코멘트...')
+            cmdty_prompt = '\n'.join([
+                f"- {name}({sym}): 현재가={PRICE_DATA.get(sym,{}).get('p','N/A')} | {desc}"
+                for sym, name, desc in CMDTY_AI_LIST
+            ])
+            cmdty_resp = call_claude(
+                'claude-sonnet-4-20250514',
+                '글로벌 원자재 전문 애널리스트. 한국어. 음슴체(~임,~함,~됨). 존댓말 금지. 각 원자재별 단기 방향성·매매전략·한국 관련주 영향을 2~3문장으로.',
+                f'[현재시세]\n{price_str}\n[해외뉴스요약]\n{gl_str[:800]}\n\n'
+                f'아래 원자재 각각에 대해 JSON 배열로 분석:\n{cmdty_prompt}\n\n'
+                f'출력형식: [{{"sym":"BRENT","comment":"분석내용","direction":"상승/하락/횡보","kr_stocks":"관련주"}},...]\n'
+                f'JSON만 출력, 다른 텍스트 없이.',
+                3000
+            )
+            # JSON 파싱
+            raw = re.sub(r'^```(?:json)?', '', cmdty_resp).rstrip('`').strip()
+            cmdty_list = json.loads(raw)
+            for item in cmdty_list:
+                sym = item.get('sym','')
+                if sym:
+                    cmdty_ai[sym] = {
+                        'comment':   item.get('comment',''),
+                        'direction': item.get('direction',''),
+                        'kr_stocks': item.get('kr_stocks',''),
+                        'ts':        TS_SHORT
+                    }
+            print(f'  원자재 AI: {len(cmdty_ai)}개')
+        except Exception as e:
+            print(f'  원자재 AI FAIL: {e}')
 
     # 5-4. 스윙종목 AI TOP10 선정 + 빠른 신호 (매 실행, Sonnet)
     swing_quick = {}
     swing_top10 = []   # AI가 선정한 TOP10 — HTML STOCKS 패치용
-    try:
-        print('  [5/4+] 스윙종목 AI TOP10 선정...')
-
-        # 종목코드 → KIS 실시간 가격 맵 (참고용)
-        kis_price_str = ' | '.join([
-            f"{code}:{int(d['p']):,}원({'+' if d['c']>=0 else ''}{d['c']:.2f}%)"
-            for code, d in kis_stock_data.items()
-        ]) if kis_stock_data else '장 마감'
-
-        # 테마/색상 코드 매핑 (Claude 프롬프트용)
-        theme_guide = (
-            'tc(테마색): tsm=반도체/IT/AI, tdf=방산/우주, ten=에너지/정유, '
-            'trv=역발상/가치, tlg=LNG/소재, tph=제약/바이오\n'
-            'ac(매매색): aby=매수/분할매수, aho=보유, awa=관심/대기, awn=주의/회피'
-        )
-
-        issue_summary = '\n'.join([
-            f"- {i.get('title','')} [{i.get('impact','')}]"
-            for i in (global_issues + domestic_issues)[:10]
-        ])
-        top10_resp = call_claude(
-            'claude-sonnet-4-20250514',
-            '한국주식 전문 스윙트레이딩 애널리스트. 한국어. 음슴체. 존댓말 금지. JSON만 출력.',
-            f'[현재시세]\n{price_str}\n\n'
-            f'[KIS 실시간 종목시세]\n{kis_price_str}\n\n'
-            f'[국내뉴스]\n{kr_str[:800]}\n\n'
-            f'[글로벌 이슈]\n{issue_summary}\n\n'
-            f'현재 시장상황 기반 KOSPI/KOSDAQ 스윙트레이딩 추천종목 10개 선정.\n'
-            f'반드시 종목코드(6자리) 포함. 종목당 1~2문장 근거.\n\n'
-            f'{theme_guide}\n\n'
-            f'출력형식(JSON 배열만):\n'
-            f'[{{"name":"삼성전자","code":"005930","mkt":"KOSPI","th":"반도체","tc":"tsm",'
-            f'"act":"분할매수","ac":"aby","risk":2,"desc":"목표가 XX만원. 근거 1문장."}},...]\n'
-            f'risk: 1=매우낮음 2=낮음 3=중간 4=높음 5=매우높음',
-            3000
-        )
-        raw_top = re.sub(r'^```(?:json)?', '', top10_resp).rstrip('`').strip()
-        s1, s2 = raw_top.find('['), raw_top.rfind(']')
-        if s1 >= 0 and s2 > s1:
-            raw_top = raw_top[s1:s2+1]
-        top10_list = json.loads(raw_top)
-        swing_top10 = [x for x in top10_list if isinstance(x, dict) and x.get('name') and x.get('code')][:10]
-        print(f'  스윙 TOP10 선정: {len(swing_top10)}개')
-
-        # 빠른 신호도 TOP10 기준으로 생성
-        swing_prompt = '\n'.join([
-            f"{s['name']}({s.get('th','')}/{s.get('mkt','')}): {s.get('act','')} — {s.get('desc','')}"
-            for s in swing_top10
-        ])
-        swing_resp = call_claude(
-            'claude-haiku-4-5-20251001',
-            '한국주식 전문 애널리스트. 한국어. 음슴체. 존댓말 금지.',
-            f'[시세] {price_str}\n[뉴스] {kr_str[:400]}\n\n'
-            f'아래 종목 각각의 오늘 투자의견:\n{swing_prompt}\n\n'
-            f'출력형식: [{{"name":"삼성전자","signal":"매수/관망/매도","reason":"1줄이유","target":0,"stop":0}},...]\n'
-            f'JSON만 출력.',
-            2000
-        )
-        raw2 = re.sub(r'^```(?:json)?', '', swing_resp).rstrip('`').strip()
-        s1, s2 = raw2.find('['), raw2.rfind(']')
-        if s1 >= 0 and s2 > s1: raw2 = raw2[s1:s2+1]
-        swing_list2 = json.loads(raw2)
-        for item in swing_list2:
-            nm = item.get('name','')
-            if nm:
-                swing_quick[nm] = {
-                    'signal': item.get('signal',''),
-                    'reason': item.get('reason',''),
-                    'target': item.get('target',0),
-                    'stop':   item.get('stop',0),
-                    'ts':     TS_SHORT
-                }
-        print(f'  스윙 빠른 신호: {len(swing_quick)}개')
-
-    except Exception as e:
-        print(f'  스윙 TOP10 FAIL: {e}')
-        swing_top10 = []
+    if AI_FULL:
+        try:
+            print('  [5/4+] 스윙종목 AI TOP10 선정...')
+    
+            # 종목코드 → KIS 실시간 가격 맵 (참고용)
+            kis_price_str = ' | '.join([
+                f"{code}:{int(d['p']):,}원({'+' if d['c']>=0 else ''}{d['c']:.2f}%)"
+                for code, d in kis_stock_data.items()
+            ]) if kis_stock_data else '장 마감'
+    
+            # 테마/색상 코드 매핑 (Claude 프롬프트용)
+            theme_guide = (
+                'tc(테마색): tsm=반도체/IT/AI, tdf=방산/우주, ten=에너지/정유, '
+                'trv=역발상/가치, tlg=LNG/소재, tph=제약/바이오\n'
+                'ac(매매색): aby=매수/분할매수, aho=보유, awa=관심/대기, awn=주의/회피'
+            )
+    
+            issue_summary = '\n'.join([
+                f"- {i.get('title','')} [{i.get('impact','')}]"
+                for i in (global_issues + domestic_issues)[:10]
+            ])
+            top10_resp = call_claude(
+                'claude-sonnet-4-20250514',
+                '한국주식 전문 스윙트레이딩 애널리스트. 한국어. 음슴체. 존댓말 금지. JSON만 출력.',
+                f'[현재시세]\n{price_str}\n\n'
+                f'[KIS 실시간 종목시세]\n{kis_price_str}\n\n'
+                f'[국내뉴스]\n{kr_str[:800]}\n\n'
+                f'[글로벌 이슈]\n{issue_summary}\n\n'
+                f'현재 시장상황 기반 KOSPI/KOSDAQ 스윙트레이딩 추천종목 10개 선정.\n'
+                f'반드시 종목코드(6자리) 포함. 종목당 1~2문장 근거.\n\n'
+                f'{theme_guide}\n\n'
+                f'출력형식(JSON 배열만):\n'
+                f'[{{"name":"삼성전자","code":"005930","mkt":"KOSPI","th":"반도체","tc":"tsm",'
+                f'"act":"분할매수","ac":"aby","risk":2,"desc":"목표가 XX만원. 근거 1문장."}},...]\n'
+                f'risk: 1=매우낮음 2=낮음 3=중간 4=높음 5=매우높음',
+                3000
+            )
+            raw_top = re.sub(r'^```(?:json)?', '', top10_resp).rstrip('`').strip()
+            s1, s2 = raw_top.find('['), raw_top.rfind(']')
+            if s1 >= 0 and s2 > s1:
+                raw_top = raw_top[s1:s2+1]
+            top10_list = json.loads(raw_top)
+            swing_top10 = [x for x in top10_list if isinstance(x, dict) and x.get('name') and x.get('code')][:10]
+            print(f'  스윙 TOP10 선정: {len(swing_top10)}개')
+    
+            # 빠른 신호도 TOP10 기준으로 생성
+            swing_prompt = '\n'.join([
+                f"{s['name']}({s.get('th','')}/{s.get('mkt','')}): {s.get('act','')} — {s.get('desc','')}"
+                for s in swing_top10
+            ])
+            swing_resp = call_claude(
+                'claude-haiku-4-5-20251001',
+                '한국주식 전문 애널리스트. 한국어. 음슴체. 존댓말 금지.',
+                f'[시세] {price_str}\n[뉴스] {kr_str[:400]}\n\n'
+                f'아래 종목 각각의 오늘 투자의견:\n{swing_prompt}\n\n'
+                f'출력형식: [{{"name":"삼성전자","signal":"매수/관망/매도","reason":"1줄이유","target":0,"stop":0}},...]\n'
+                f'JSON만 출력.',
+                2000
+            )
+            raw2 = re.sub(r'^```(?:json)?', '', swing_resp).rstrip('`').strip()
+            s1, s2 = raw2.find('['), raw2.rfind(']')
+            if s1 >= 0 and s2 > s1: raw2 = raw2[s1:s2+1]
+            swing_list2 = json.loads(raw2)
+            for item in swing_list2:
+                nm = item.get('name','')
+                if nm:
+                    swing_quick[nm] = {
+                        'signal': item.get('signal',''),
+                        'reason': item.get('reason',''),
+                        'target': item.get('target',0),
+                        'stop':   item.get('stop',0),
+                        'ts':     TS_SHORT
+                    }
+            print(f'  스윙 빠른 신호: {len(swing_quick)}개')
+    
+        except Exception as e:
+            print(f'  스윙 TOP10 FAIL: {e}')
+            swing_top10 = []
 
 else:
     print('  ANTHROPIC_API_KEY 없음 — AI 분석 스킵')
@@ -1798,7 +1807,8 @@ if ANTHROPIC_KEY:
         print(f'  공시요약: 신규 {new_count}건 (캐시 총 {len(cache)}건)')
         return cache
 
-    print(f'\n[뉴스/공시 요약] 10건 전체 처리 (Haiku 고속)...')
+    if ANTHROPIC_KEY and AI_HOURLY:
+        print(f'\n[뉴스/공시 요약] 10건 전체 처리 (Haiku 고속)...')
     # 기존 캐시에서 ### 마크다운이 남아있는 항목 제거 (재생성 대상)
     def clean_cache(cache):
         return {k: v for k, v in cache.items() if '###' not in v.get('html','') and '##' not in v.get('html','')}
