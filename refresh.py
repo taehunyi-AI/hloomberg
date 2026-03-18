@@ -1558,10 +1558,12 @@ def parse_issues_json(text):
     return []
 
 
-# Groq 호출 설정 (무료 티어: 6,000 TPM / 30 RPM)
-GROQ_CALL_INTERVAL = 12  # 초: 연속 호출 간 최소 대기 (8→12)
-GROQ_RETRY_WAIT    = 30  # 초: 429 재시도 대기 (15→30)
-GROQ_MAX_RETRY     = 5   # 재시도 횟수 (3→5)
+# Groq 호출 설정 (무료 티어: 30 RPM)
+# RPM 한도: 30회/분 = 2초당 1회 → 인터벌 10초로 안전 마진 확보
+# 429 시 재시도 금지 — 재시도가 RPM을 더 소모하는 악순환 방지
+GROQ_CALL_INTERVAL = 10  # 초: 연속 호출 간 최소 대기 (30RPM 기준 안전값)
+GROQ_RETRY_WAIT    = 0   # 미사용
+GROQ_MAX_RETRY     = 0   # 429 시 재시도 안 함 — 즉시 건너뜀
 _groq_last_call    = 0.0
 
 def call_groq(model, system, user, max_tokens=3000):
@@ -1572,31 +1574,29 @@ def call_groq(model, system, user, max_tokens=3000):
     elapsed = time.time() - _groq_last_call
     if elapsed < GROQ_CALL_INTERVAL:
         time.sleep(GROQ_CALL_INTERVAL - elapsed)
-    for attempt in range(GROQ_MAX_RETRY):
-        _groq_last_call = time.time()
-        resp = requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
-            json={
-                'model': model,
-                'max_tokens': max_tokens,
-                'messages': [
-                    {'role': 'system', 'content': system},
-                    {'role': 'user',   'content': user},
-                ],
-            },
-            timeout=120,
-        )
-        if resp.status_code == 429:
-            wait = GROQ_RETRY_WAIT * (attempt + 1)
-            print(f'    Groq 429 → {wait}초 대기 후 재시도 ({attempt+1}/{GROQ_MAX_RETRY})')
-            time.sleep(wait)
-            continue
-        if not resp.ok:
-            raise Exception(f'Groq HTTP {resp.status_code}: {resp.text[:200]}')
-        raw = resp.json()['choices'][0]['message']['content'].strip()
-        return re.sub(r'^```(?:json)?', '', raw).rstrip('`').strip()
-    raise Exception(f'Groq 429 재시도 {GROQ_MAX_RETRY}회 초과')
+    _groq_last_call = time.time()
+    resp = requests.post(
+        'https://api.groq.com/openai/v1/chat/completions',
+        headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
+        json={
+            'model': model,
+            'max_tokens': max_tokens,
+            'messages': [
+                {'role': 'system', 'content': system},
+                {'role': 'user',   'content': user},
+            ],
+        },
+        timeout=120,
+    )
+    if resp.status_code == 429:
+        # 재시도 금지 — RPM 악순환 방지, 해당 호출 건너뜀
+        retry_after = resp.headers.get('retry-after', '?')
+        print(f'    Groq 429 rate_limit — 건너뜀 (retry-after: {retry_after}s)')
+        raise Exception(f'Groq 429 rate_limit_exceeded')
+    if not resp.ok:
+        raise Exception(f'Groq HTTP {resp.status_code}: {resp.text[:200]}')
+    raw = resp.json()['choices'][0]['message']['content'].strip()
+    return re.sub(r'^```(?:json)?', '', raw).rstrip('`').strip()
 
 # alias — 기존 call_claude/call_ai 호출 호환
 def call_ai(model, system, user, max_tokens=3000):
@@ -1842,7 +1842,6 @@ if GROQ_KEY and AI_PARTIAL:
             print(f'    Step1 완료: {len(step1_signals)}개 시그널')
 
             # ── Step 2: 시그널 + KIS 수급 결합, 후보 20개 선별
-            time.sleep(15)
             print('    Step2: 후보 20개 선별...')
             step1_str = '\n'.join([
                 f"- {s.get('name','')}({s.get('code','')}) {s.get('signal','')} [{s.get('urgency','')}]: {s.get('reason','')}"
@@ -1880,7 +1879,6 @@ if GROQ_KEY and AI_PARTIAL:
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
 
             # ── Step 3: 리스크 필터링 → TOP10 확정
-            time.sleep(15)
             print('    Step3: 리스크 필터링 → TOP10 확정...')
             step2_str = '\n'.join([
                 f"- {c.get('name','')}({c.get('code','')}/{c.get('mkt','')}) "
@@ -1916,7 +1914,6 @@ if GROQ_KEY and AI_PARTIAL:
             print(f'    Step3 완료: TOP{len(swing_top10)} 확정')
 
             # ── Step 4: 종목별 매매전략 생성 (목표가/손절가)
-            time.sleep(15)
             print('    Step4: 매매전략 생성...')
             top10_str = '\n'.join([
                 f"- {s['name']}({s.get('code','')}/{s.get('mkt','')}) "
@@ -2003,12 +2000,22 @@ if GROQ_KEY:
         cache = dict(existing_cache)
         new_count = 0
         sys_prompt = system_prompt + ' 마크다운 헤더(###,##,#) 절대 사용 금지. 단락 구분은 빈 줄로만. 문어체로 작성.'
+
+        # 캐시 히트율 계산 — 현재 뉴스 중 이미 캐시된 비율
+        keys = [n['title'][:30] for n in items[:max_new]]
+        hit_count = sum(1 for k in keys if k in cache)
+        hit_rate = hit_count / len(keys) if keys else 0
+
+        # 히트율 70% 이상이면 신규 요약 스킵 (캐시 충분)
+        if hit_rate >= 0.7:
+            print(f'  {label}: 캐시 히트 {hit_count}/{len(keys)} ({hit_rate:.0%}) — 요약 스킵')
+            return cache
+
         for n in items[:max_new]:
             key = n['title'][:30]
             if key in cache:
                 continue
             try:
-                # Haiku — 속도 우선 (10건 전체 처리)
                 t = call_claude('claude-haiku-4-5-20251001', sys_prompt,
                     f"제목: {n['title']}\n출처: {n.get('src','')}\n태그: {n.get('tag','')}", 1000)
                 t = re.sub(r'^#{1,4}\s*(.+)$', r'<strong>\1</strong>', t, flags=re.MULTILINE)
@@ -2023,15 +2030,23 @@ if GROQ_KEY:
                 ])
                 cache[key] = {'html': t_html, 'ts': TS_SHORT}
                 new_count += 1
-                time.sleep(0.15)  # Haiku는 더 빠르므로 대기 단축
             except Exception as e:
                 print(f'  요약 FAIL [{label}] {n["title"][:20]}: {e}')
-        print(f'  {label}: 신규 {new_count}건 요약 (캐시 총 {len(cache)}건)')
+        print(f'  {label}: 신규 {new_count}건 요약 (캐시 총 {len(cache)}건, 히트율 {hit_rate:.0%})')
         return cache
 
-    def summarize_dart(items, existing_cache, max_new=20):
+    def summarize_dart(items, existing_cache, max_new=10):
         cache = dict(existing_cache)
         new_count = 0
+
+        # 캐시 히트율 70% 이상이면 스킵
+        keys = [d['title'][:30] for d in items[:max_new]]
+        hit_count = sum(1 for k in keys if k in cache)
+        hit_rate = hit_count / len(keys) if keys else 0
+        if hit_rate >= 0.7:
+            print(f'  공시요약: 캐시 히트 {hit_count}/{len(keys)} ({hit_rate:.0%}) — 요약 스킵')
+            return cache
+
         for d in items[:max_new]:
             key = d['title'][:30]
             if key in cache:
