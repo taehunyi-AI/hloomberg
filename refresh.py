@@ -2022,6 +2022,10 @@ if GROQ_KEY and AI_PARTIAL:
             # kis_stock_data 코드도 추가
             for _c, _d in (kis_stock_data or {}).items():
                 _code_db[_d.get('name', '')] = _c
+            # 퍼지 매칭용 키 DB (공백·하이픈·점 제거 소문자)
+            import re as _re_fz
+            def _fz(s): return _re_fz.sub(r'[\s\-\.]', '', s).lower()
+            _code_db_fz = {_fz(k): (k, v) for k, v in _code_db.items()}
             print(f'    [DB] KIS 마스터 종목: {len(_code_db)}개')
 
             step2_resp = call_claude(
@@ -2057,6 +2061,11 @@ if GROQ_KEY and AI_PARTIAL:
             step2_candidates = extract_json_array(step2_resp) or []
             # 방법2: name으로 실제 코드 역조회 보정 + 더미코드(123456) 제거
             _fixed = []  # _code_db는 Step2 호출 전에 구성됨
+            # 전각문자 → 반각 정규화 (AI가 ＳＯｉｌ 형태로 출력하는 경우 대응)
+            def _normalize(s):
+                return ''.join(chr(ord(c) - 0xFEE0) if 0xFF01 <= ord(c) <= 0xFF5E else c for c in s).strip()
+            for _s in step2_candidates:
+                _s['name'] = _normalize(_s.get('name', ''))
             _DUMMY_CODES = {'123456', '없음', 'None', '', '0'}
             import re as _re2
             for _s in step2_candidates:
@@ -2073,12 +2082,20 @@ if GROQ_KEY and AI_PARTIAL:
                     continue
                 # 마스터DB 검증: _code_db에 없는 종목 제거 (잘못된 코드 원천 차단)
                 _db_code = _code_db.get(_nm)
+                if not _db_code:
+                    # 퍼지 매칭 시도 (전각→반각 후 하이픈/공백 차이 허용)
+                    _fz_match = _code_db_fz.get(_fz(_nm))
+                    if _fz_match:
+                        _db_name, _db_code = _fz_match
+                        print(f'    퍼지매칭: {_nm} → {_db_name}({_db_code})')
+                        _s['name'] = _db_name
+                        _s['code'] = _db_code
                 if _db_code and _db_code != _cd:
                     # DB에 같은 종목명이 있는데 코드가 다르면 DB 코드로 보정
                     print(f'    코드 보정(DB): {_nm} {_cd} → {_db_code}')
                     _s['code'] = _db_code
                 elif not _db_code:
-                    # DB에 없는 종목 → AI가 추측한 코드일 가능성 → 제거
+                    # DB에도 없고 퍼지매칭도 실패 → 제거
                     print(f'    제거(DB미등록): {_nm}({_cd})')
                     continue
                 _fixed.append(_s)
