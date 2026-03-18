@@ -51,7 +51,7 @@ KST = timezone(timedelta(hours=9))
 NOW = datetime.now(KST)
 TS  = NOW.strftime('%Y-%m-%d %H:%M KST')
 TS_SHORT = NOW.strftime('%m/%d %H:%M')
-AI_HOURLY = NOW.minute < 6  # 1시간 주기 (빠른신호/뉴스요약)
+AI_HOURLY = NOW.minute in range(5, 12)  # :07분 cron 기준 ±5분 허용
 
 # 주말 감지 (0=월 ... 6=일)
 IS_WEEKEND = NOW.weekday() >= 5  # 토(5), 일(6)
@@ -2051,24 +2051,19 @@ gl_news_summaries = {}
 dart_summaries    = {}
 
 if GROQ_KEY:
-    # 기존 캐시 로드
+    # 캐시 로드 — /tmp/summaries_cache.json (HTML과 독립 저장)
+    SUMMARIES_CACHE_FILE = '/tmp/summaries_cache.json'
+    _sc = {}
     try:
-        with open(HTML_FILE, encoding='utf-8') as f:
-            existing_html = f.read()
-
-        def extract_cache(marker_s, marker_e, html_content):
-            m = re.search(re.escape(marker_s) + r'\s*\nconst \w+=(\{.*?\});\s*\n' + re.escape(marker_e), html_content, re.DOTALL)
-            if m:
-                try: return json.loads(m.group(1))
-                except: pass
-            return {}
-
-        kr_news_summaries = extract_cache('// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', existing_html)
-        gl_news_summaries = extract_cache('// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', existing_html)
-        dart_summaries    = extract_cache('// ##DART_SUMMARIES_S##',    '// ##DART_SUMMARIES_E##',    existing_html)
-        print(f'  캐시 로드: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)}')
-    except Exception as e:
-        print(f'  캐시 로드 실패: {e}')
+        with open(SUMMARIES_CACHE_FILE, encoding='utf-8') as f:
+            _sc = json.load(f)
+        print(f'  캐시 파일 로드: {_sc.get("_meta","?")}')
+    except Exception:
+        print('  캐시 파일 없음 — 신규 생성')
+    kr_news_summaries = _sc.get('kr_news', {})
+    gl_news_summaries = _sc.get('gl_news', {})
+    dart_summaries    = _sc.get('dart',    {})
+    print(f'  캐시 로드: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)}')
 
     def summarize_news(items, existing_cache, label, system_prompt, max_new=10):
         cache = dict(existing_cache)
@@ -2277,16 +2272,24 @@ html = patch(html, '// ##GL_NEWS_DATA_S##', '// ##GL_NEWS_DATA_E##', f'\nconst G
 
 # ── 뉴스/공시 요약 캐시 패치
 def summaries_to_js(cache, var_name):
-    lines = [f'const {var_name}={{']
-    for key, v in cache.items():
-        h = JE(v['html'])
-        t = JE(v['ts'])
-        k = JE(key)
-        lines.append(f"  '{k}':{{html:'{h}',ts:'{t}'}},")
-    lines.append('};')
-    return '\n' + '\n'.join(lines) + '\n'
+    # JSON 포맷으로 저장 — extract_cache의 json.loads()와 호환
+    return f'\nconst {var_name}=' + json.dumps(cache, ensure_ascii=False) + ';\n'
 
-html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
+    # 캐시 파일 저장 (/tmp/summaries_cache.json — GitHub Actions cache로 유지)
+    try:
+        _cache_data = {
+            '_meta': f'{NOW_KST:%Y-%m-%d %H:%M} KST — kr:{len(kr_news_summaries)} gl:{len(gl_news_summaries)} dart:{len(dart_summaries)}',
+            'kr_news': kr_news_summaries,
+            'gl_news': gl_news_summaries,
+            'dart':    dart_summaries,
+        }
+        with open(SUMMARIES_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(_cache_data, f, ensure_ascii=False)
+        print(f'  캐시 저장: {SUMMARIES_CACHE_FILE}')
+    except Exception as e:
+        print(f'  캐시 저장 실패: {e}')
+
+    html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
 html = patch(html, '// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', summaries_to_js(gl_news_summaries, 'GL_NEWS_SUMMARIES'))
 html = patch(html, '// ##DART_SUMMARIES_S##',    '// ##DART_SUMMARIES_E##',    summaries_to_js(dart_summaries,    'DART_SUMMARIES'))
 print(f'  SUMMARIES: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)}')
@@ -2527,20 +2530,26 @@ def tg_send(msg):
     if not TG_BOT or not TG_CHAT:
         print('  [TG] 토큰/ChatID 미설정')
         return
-    try:
-        chat_id = int(TG_CHAT)
-        r = requests.post(
-            f'https://api.telegram.org/bot{TG_BOT}/sendMessage',
-            json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'},
-            timeout=10
-        )
-        j = r.json()
-        if not j.get('ok'):
-            print(f'  [TG] 전송 실패: {j.get("error_code")} {j.get("description")}')
-        else:
-            print(f'  [TG] 전송 OK (message_id={j["result"]["message_id"]})')
-    except Exception as e:
-        print(f'  [TG] 예외: {e}')
+    for attempt in range(2):  # 최대 2회 시도
+        try:
+            chat_id = int(TG_CHAT)
+            r = requests.post(
+                f'https://api.telegram.org/bot{TG_BOT}/sendMessage',
+                json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'},
+                timeout=15
+            )
+            j = r.json()
+            if not j.get('ok'):
+                print(f'  [TG] 전송 실패: {j.get("error_code")} {j.get("description")}')
+            else:
+                print(f'  [TG] 전송 OK (message_id={j["result"]["message_id"]})')
+            return
+        except Exception as e:
+            if attempt == 0:
+                print(f'  [TG] 재시도 중... ({e})')
+                time.sleep(3)
+            else:
+                print(f'  [TG] 예외: {e}')
 
 def load_tg_cache():
     try:
