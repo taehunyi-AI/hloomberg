@@ -1564,31 +1564,37 @@ def parse_issues_json(text):
 import collections as _col
 
 class _SlidingWindow:
-    TPM_LIMIT = 5400    # 90% 목표 (Groq 한도 6,000)
+    # Dev Tier 98% 목표
+    # llama-3.3-70b: 300,000 TPM × 98% = 294,000
+    # llama-3.1-8b:  200,000 TPM × 98% = 196,000
+    TPM_70B   = 294000
+    TPM_8B    = 196000
     WINDOW    = 60.0    # 슬라이딩 윈도우 60초
 
     def __init__(self):
-        self._history = []  # [(abs_time, tokens), ...]
+        self._history_70b = []  # [(abs_time, tokens), ...]
+        self._history_8b  = []
 
-    def consume(self, tokens):
+    def consume(self, tokens, model='70b'):
         import time as _t
+        history  = self._history_70b if '70b' in model else self._history_8b
+        tpm_limit = self.TPM_70B    if '70b' in model else self.TPM_8B
         while True:
             now = _t.time()
             # 윈도우 밖 항목 제거
-            self._history = [(ts, tok) for ts, tok in self._history
-                             if ts > now - self.WINDOW]
-            recent = sum(tok for _, tok in self._history)
-            if recent + tokens <= self.TPM_LIMIT:
-                self._history.append((now, tokens))
+            history[:] = [(ts, tok) for ts, tok in history if ts > now - self.WINDOW]
+            recent = sum(tok for _, tok in history)
+            if recent + tokens <= tpm_limit:
+                history.append((now, tokens))
                 return
-            # 윈도우 내 가장 오래된 항목이 만료될 때까지 대기
-            oldest = min(ts for ts, _ in self._history)
+            oldest = min(ts for ts, _ in history)
             wait = oldest + self.WINDOW - now + 0.5
-            print(f'    [TPM] {recent:,}+{tokens:,}>{self.TPM_LIMIT} → {wait:.1f}초 대기')
+            print(f'    [TPM-{model}] {recent:,}+{tokens:,}>{tpm_limit:,} → {wait:.1f}초 대기')
             _t.sleep(wait)
 
     def reset(self):
-        self._history.clear()
+        self._history_70b.clear()
+        self._history_8b.clear()
 
 _bucket = _SlidingWindow()
 
@@ -1598,7 +1604,7 @@ def call_groq(model, system, user, max_tokens=3000):
         raise Exception('No GROQ_API_KEY')
     # 토큰 추정: 입력(chars/4) + 출력(max_tokens) → 버킷 소비
     est_tokens = len(system) // 4 + len(user) // 4 + max_tokens
-    _bucket.consume(est_tokens)
+    _bucket.consume(est_tokens, model)
     resp = requests.post(
         'https://api.groq.com/openai/v1/chat/completions',
         headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
