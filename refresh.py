@@ -1835,6 +1835,8 @@ if GROQ_KEY and AI_PARTIAL:
             '핵심 리스크: 상위 3개 리스크 요인, 각 리스크의 발생 가능성(%)과 시장 충격 크기, 대응 전략',
             4000
         )
+        # ###, **헤더** 등 다양한 구분자 지원
+        t = re.sub(r'\*\*(BIAS|FORECAST|PICKS|RISK)\*\*', r'### \1', t, flags=re.IGNORECASE)
         parts = re.split(r'###\s*', t)
         full_html = ''
         SECTION_ICONS = {'BIAS':'🔍','FORECAST':'📈','PICKS':'🎯','RISK':'⚠️'}
