@@ -1754,7 +1754,7 @@ def translate_titles(items):
     except Exception as e:
         print(f'  번역 FAIL: {e}')
 
-if GROQ_KEY and AI_HOURLY:
+if GROQ_KEY and AI_FULL:
     translate_titles(gl_news)
 
 
@@ -2258,7 +2258,7 @@ if GROQ_KEY:
         print(f'  공시요약: 신규 {new_count}건 (캐시 총 {len(cache)}건)')
         return cache
 
-    if GROQ_KEY and AI_HOURLY:
+    if GROQ_KEY and AI_FULL:
         print(f'\n[뉴스/공시 요약] 10건 전체 처리 (Haiku 고속)...')
     # 기존 캐시에서 ### 마크다운이 남아있는 항목 제거 (재생성 대상)
     def clean_cache(cache):
