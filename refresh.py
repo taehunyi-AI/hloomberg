@@ -2338,19 +2338,19 @@ def summaries_to_js(cache, var_name):
     # JSON 포맷으로 저장 — extract_cache의 json.loads()와 호환
     return f'\nconst {var_name}=' + json.dumps(cache, ensure_ascii=False) + ';\n'
 
-    # 캐시 파일 저장 (/tmp/summaries_cache.json — GitHub Actions cache로 유지)
-    try:
-        _cache_data = {
-            '_meta': f'{NOW_KST:%Y-%m-%d %H:%M} KST — kr:{len(kr_news_summaries)} gl:{len(gl_news_summaries)} dart:{len(dart_summaries)}',
-            'kr_news': kr_news_summaries,
-            'gl_news': gl_news_summaries,
-            'dart':    dart_summaries,
-        }
-        with open(SUMMARIES_CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(_cache_data, f, ensure_ascii=False)
-        print(f'  캐시 저장: {SUMMARIES_CACHE_FILE}')
-    except Exception as e:
-        print(f'  캐시 저장 실패: {e}')
+# 캐시 파일 저장 (/tmp/summaries_cache.json — GitHub Actions cache로 유지)
+try:
+    _cache_data = {
+        '_meta': f'{NOW_KST:%Y-%m-%d %H:%M} KST — kr:{len(kr_news_summaries)} gl:{len(gl_news_summaries)} dart:{len(dart_summaries)}',
+        'kr_news': kr_news_summaries,
+        'gl_news': gl_news_summaries,
+        'dart':    dart_summaries,
+    }
+    with open(SUMMARIES_CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(_cache_data, f, ensure_ascii=False)
+    print(f'  캐시 저장: {SUMMARIES_CACHE_FILE}')
+except Exception as e:
+    print(f'  캐시 저장 실패: {e}')
 
     html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
 html = patch(html, '// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', summaries_to_js(gl_news_summaries, 'GL_NEWS_SUMMARIES'))
