@@ -2675,30 +2675,26 @@ TG_BOT  = os.environ.get('TELEGRAM_BOT_TOKEN','')
 TG_CHAT = os.environ.get('TELEGRAM_CHAT_ID','')
 TG_CACHE_FILE = '/tmp/tg_alert_cache.json'   # 이전 알림 캐시
 
+TG_QUEUE_FILE = '/tmp/tg_messages.json'
+
 def tg_send(msg):
+    """Telegram 메시지를 큐 파일에 저장 — yml에서 git push 후 실제 전송"""
     if not TG_BOT or not TG_CHAT:
         print('  [TG] 토큰/ChatID 미설정')
         return
-    for attempt in range(2):  # 최대 2회 시도
+    try:
+        existing = []
         try:
-            chat_id = int(TG_CHAT)
-            r = requests.post(
-                f'https://api.telegram.org/bot{TG_BOT}/sendMessage',
-                json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'},
-                timeout=15
-            )
-            j = r.json()
-            if not j.get('ok'):
-                print(f'  [TG] 전송 실패: {j.get("error_code")} {j.get("description")}')
-            else:
-                print(f'  [TG] 전송 OK (message_id={j["result"]["message_id"]})')
-            return
-        except Exception as e:
-            if attempt == 0:
-                print(f'  [TG] 재시도 중... ({e})')
-                time.sleep(3)
-            else:
-                print(f'  [TG] 예외: {e}')
+            with open(TG_QUEUE_FILE, encoding='utf-8') as f:
+                existing = json.load(f)
+        except Exception:
+            pass
+        existing.append({'text': msg, 'parse_mode': 'HTML'})
+        with open(TG_QUEUE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(existing, f, ensure_ascii=False)
+        print(f'  [TG] 큐 저장 (총 {len(existing)}건)')
+    except Exception as e:
+        print(f'  [TG] 큐 저장 실패: {e}')
 
 def load_tg_cache():
     try:
