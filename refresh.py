@@ -935,7 +935,7 @@ FRED_SERIES = {
     'FED_RATE':  {'id':'FEDFUNDS',        'name':'미국 기준금리',   'unit':'%',  'yoy':False},
     'CPI_YOY':   {'id':'CPIAUCSL',        'name':'미국 CPI(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
     'UNRATE':    {'id':'UNRATE',          'name':'미국 실업률',     'unit':'%',  'yoy':False},
-    'GDP_QOQ':   {'id':'A191RL1Q225SBEA', 'name':'미국 GDP(QoQ)',  'unit':'%',  'yoy':False},  # 이미 성장률
+    'GDP_QOQ':   {'id':'GDPC1',            'name':'미국 실질GDP',   'unit':'B$', 'yoy':True },  # YoY 성장률
     'US_PMI':    {'id':'INDPRO',          'name':'미국 산업생산', 'unit':'',   'yoy':True},
     'US10Y':     {'id':'DGS10',           'name':'미국 10Y 국채',  'unit':'%',  'yoy':False},
     'DXY':       {'id':'DTWEXBGS',        'name':'달러인덱스',      'unit':'',   'yoy':False},
@@ -1986,16 +1986,20 @@ if GROQ_KEY and AI_PARTIAL:
             for _c, _d in (kis_stock_data or {}).items():
                 _code_db[_d.get('name', '')] = _c
             _fixed = []
+            _DUMMY_CODES = {'123456', '없음', 'None', '', '0'}
             for _s in step2_candidates:
                 _nm = _s.get('name', '').strip()
-                _cd = str(_s.get('code', ''))
-                if _cd == '123456' and _nm in _code_db:
+                _cd = str(_s.get('code', '')).strip()
+                # 더미코드면 DB에서 실제코드 역조회
+                if _cd in _DUMMY_CODES and _nm in _code_db:
                     _s['code'] = _code_db[_nm]
                     print(f'    코드 보정: {_nm} → {_s["code"]}')
-                if str(_s.get('code', '')) != '123456':
+                # 유효 코드(6자리 숫자)인지 최종 확인
+                import re as _re2
+                if _re2.fullmatch(r'\d{6}', str(_s.get('code', ''))):
                     _fixed.append(_s)
                 else:
-                    print(f'    더미코드 제거: {_nm}(123456)')
+                    print(f'    더미코드 제거: {_nm}({_s.get("code","?")})')
             step2_candidates = _fixed
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
             for _s in step2_candidates[:3]:
@@ -2341,7 +2345,7 @@ def summaries_to_js(cache, var_name):
 # 캐시 파일 저장 (/tmp/summaries_cache.json — GitHub Actions cache로 유지)
 try:
     _cache_data = {
-        '_meta': f'{NOW_KST:%Y-%m-%d %H:%M} KST — kr:{len(kr_news_summaries)} gl:{len(gl_news_summaries)} dart:{len(dart_summaries)}',
+        '_meta': f'{NOW.strftime("%Y-%m-%d %H:%M")} KST — kr:{len(kr_news_summaries)} gl:{len(gl_news_summaries)} dart:{len(dart_summaries)}',
         'kr_news': kr_news_summaries,
         'gl_news': gl_news_summaries,
         'dart':    dart_summaries,
