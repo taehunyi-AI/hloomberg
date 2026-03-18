@@ -16,11 +16,6 @@ on:
     - cron: '7 23 * * 0,1,2,3,4'
     - cron: '7 11 * * 1,2,3,4,5'
   workflow_dispatch:
-    inputs:
-      mode:
-        description: 'full=전체AI, partial=종합+TOP10, stock=상세분석, empty=시세/뉴스만'
-        required: false
-        default: ''
 
 permissions:
   contents: write
@@ -70,15 +65,7 @@ jobs:
           BOK_API_KEY:        ${{ secrets.BOK_API_KEY }}
           KIS_APP_KEY:        ${{ secrets.KIS_APP_KEY }}
           KIS_APP_SECRET:     ${{ secrets.KIS_APP_SECRET }}
-          # AI_MODE: full=전체AI, partial=종합+TOP10, stock=상세분석만, ''=없음
-          AI_MODE: >-
-            ${{
-              (github.event.inputs.mode == 'stock') && 'stock' ||
-              (github.event.inputs.mode == 'partial') && 'partial' ||
-              (github.event.schedule == '7 23 * * 0,1,2,3,4') && 'stock' ||
-              (github.event.schedule == '7 11 * * 1,2,3,4,5') && 'stock' ||
-              'full'
-            }}
+          AI_MODE: full
           GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: python refresh.py
 
