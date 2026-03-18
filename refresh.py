@@ -1879,10 +1879,20 @@ if GROQ_KEY and AI_PARTIAL:
         try:
             print('  [5/4] 패턴A 체인드 리서치 시작...')
 
+            # KIS 실시간 + PRICE_DATA fallback (장 마감 대비)
+            _price_combined = {}
+            for _s in swing_top10:
+                _c = _s.get('code', '')
+                if _c in (kis_stock_data or {}):
+                    _price_combined[_c] = kis_stock_data[_c]
+                elif _c in PRICE_DATA:
+                    _price_combined[_c] = PRICE_DATA[_c]
+            if not _price_combined and kis_stock_data:
+                _price_combined = kis_stock_data
             kis_price_str = ' | '.join([
                 f"{code}:{int(d['p']):,}원({'+' if d['c']>=0 else ''}{d['c']:.2f}%)"
-                for code, d in kis_stock_data.items()
-            ]) if kis_stock_data else '장 마감'
+                for code, d in _price_combined.items()
+            ]) if _price_combined else '시세 없음 — 목표가 비율 기준 제시'
 
             theme_guide = (
                 'tc: tsm=반도체/IT/AI, tdf=방산/우주, ten=에너지/정유, '
@@ -1952,6 +1962,10 @@ if GROQ_KEY and AI_PARTIAL:
             )
             step2_candidates = extract_json_array(step2_resp) or []
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
+            for _s in (step2_candidates or [])[:3]:
+                print(f'      → {_s.get("name","?")}({_s.get("code","?")}) score={_s.get("score","?")}')
+            if not step2_candidates and step2_resp:
+                print(f'    Step2 응답 앞 200자: {step2_resp[:200]}')
 
             # ── Step 3: 리스크 필터링 → TOP10 확정
             print('    Step3: 리스크 필터링 → TOP10 확정...')
@@ -1985,8 +1999,18 @@ if GROQ_KEY and AI_PARTIAL:
                 2500
             )
             top10_list = extract_json_array(step3_resp) or []
-            swing_top10 = [x for x in top10_list if isinstance(x, dict) and x.get('name') and x.get('code')][:10]
+            # 유효 종목코드 검증: 6자리 숫자만 허용 (더미코드 제거)
+            import re as _re
+            swing_top10 = [
+                x for x in top10_list
+                if isinstance(x, dict) and x.get('name')
+                and _re.fullmatch(r'\d{6}', str(x.get('code','')))
+            ][:10]
             print(f'    Step3 완료: TOP{len(swing_top10)} 확정')
+            for _s in swing_top10[:3]:
+                print(f'      → {_s.get("name","?")}({_s.get("code","?")}) {_s.get("mkt","?")}')
+            if not swing_top10 and step3_resp:
+                print(f'    Step3 응답 앞 200자: {step3_resp[:200]}')
 
             # ── Step 4: 종목별 매매전략 생성 (목표가/손절가)
             print('    Step4: 매매전략 생성...')
@@ -2000,7 +2024,7 @@ if GROQ_KEY and AI_PARTIAL:
                 '한국주식 트레이딩 전략가. 한국어. JSON만 출력. 문어체로 작성. 존댓말 사용 금지.',
                 f'[확정 TOP10]\n{top10_str}\n\n'
                 f'[KIS 실시간 시세]\n{kis_price_str}\n\n'
-                f'현재가 기준 실현 가능한 목표가/손절가 제시.\n\n'
+                f'현재가 기준 실현 가능한 목표가/손절가 제시. 시세 없으면 일반적 변동폭(±5~10%) 기준으로 제시.\n\n'
                 f'출력형식(JSON 배열):\n'
                 f'[{{"name":"삼성전자","signal":"매수/관망/매도",'
                 f'"reason":"1줄 근거","target":75000,"stop":68000}},...]',
@@ -2008,6 +2032,9 @@ if GROQ_KEY and AI_PARTIAL:
             )
             step4_list = extract_json_array(step4_resp) or []
 
+            # Step4 디버그
+            print(f'    Step4 응답 앞 300자: {step4_resp[:300]}')
+            print(f'    Step4 파싱: {len(step4_list)}개')
             # swing_quick 구성
             for item in step4_list:
                 nm = item.get('name', '')
