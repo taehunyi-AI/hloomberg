@@ -312,21 +312,22 @@ def fetch_kis_price(code, token):
         p0 = float(d.get('stck_sdpr', 0) or 0)
         if p > 0:
             return {'p': p, 'c': c, 'p0': p0, 'src': 'KIS'}
-        # 장 마감 시 Yahoo Finance fallback
-        sym = code + '.KS'
-        try:
-            r2 = requests.get(f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}',
-                              headers={'User-Agent':'Mozilla/5.0'}, timeout=5)
-            if r2.ok:
-                meta = r2.json().get('chart',{}).get('result',[{}])[0].get('meta',{})
-                p = meta.get('regularMarketPrice', 0)
-                pc = meta.get('chartPreviousClose', p)
-                c = round((p - pc) / pc * 100, 2) if pc else 0
-                if p > 0:
-                    print(f'    KIS 종목 {code} → Yahoo fallback: {p:,}원 ({c:+.2f}%)')
-                    return {'p': p, 'c': c, 'src': 'Yahoo'}
-        except Exception:
-            pass
+        # 장 마감 시 Yahoo Finance fallback (.KS → .KQ 순서로 시도)
+        for suffix in ('.KS', '.KQ'):
+            sym = code + suffix
+            try:
+                r2 = requests.get(f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}',
+                                  headers={'User-Agent':'Mozilla/5.0'}, timeout=5)
+                if r2.ok:
+                    meta = r2.json().get('chart',{}).get('result',[{}])[0].get('meta',{})
+                    p = meta.get('regularMarketPrice', 0)
+                    pc = meta.get('chartPreviousClose', p)
+                    c = round((p - pc) / pc * 100, 2) if pc else 0
+                    if p > 0:
+                        print(f'    KIS 종목 {code} → Yahoo fallback({suffix}): {p:,}원 ({c:+.2f}%)')
+                        return {'p': p, 'c': c, 'src': 'Yahoo'}
+            except Exception:
+                pass
         print(f'    KIS 종목 {code} 가격 0 (장 마감/데이터 없음)')
     except Exception as e:
         print(f'    KIS 종목 {code} 예외: {e}')
@@ -935,7 +936,7 @@ FRED_SERIES = {
     'CPI_YOY':   {'id':'CPIAUCSL',        'name':'미국 CPI(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
     'UNRATE':    {'id':'UNRATE',          'name':'미국 실업률',     'unit':'%',  'yoy':False},
     'GDP_QOQ':   {'id':'A191RL1Q225SBEA', 'name':'미국 GDP(QoQ)',  'unit':'%',  'yoy':False},  # 이미 성장률
-    'US_PMI':    {'id':'NAPM',            'name':'미국 PMI(ISM)', 'unit':'',   'yoy':False},
+    'US_PMI':    {'id':'INDPRO',          'name':'미국 산업생산', 'unit':'',   'yoy':True},
     'US10Y':     {'id':'DGS10',           'name':'미국 10Y 국채',  'unit':'%',  'yoy':False},
     'DXY':       {'id':'DTWEXBGS',        'name':'달러인덱스',      'unit':'',   'yoy':False},
     'PCE':       {'id':'PCEPI',           'name':'미국 PCE(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
@@ -2075,7 +2076,10 @@ if GROQ_KEY:
         sys_prompt = system_prompt + ' 마크다운 헤더(###,##,#) 절대 사용 금지. 단락 구분은 빈 줄로만. 문어체로 작성.'
 
         # 캐시 히트율 계산 — 현재 뉴스 중 이미 캐시된 비율
-        keys = [n['title'][:30] for n in items[:max_new]]
+        # 캐시 키: URL 있으면 URL 해시, 없으면 제목 앞 40자
+        def _cache_key(n):
+            return n.get('url', n['title'])[:60]
+        keys = [_cache_key(n) for n in items[:max_new]]
         hit_count = sum(1 for k in keys if k in cache)
         hit_rate = hit_count / len(keys) if keys else 0
 
@@ -2085,7 +2089,7 @@ if GROQ_KEY:
             return cache
 
         for n in items[:max_new]:
-            key = n['title'][:30]
+            key = n.get('url', n['title'])[:60]
             if key in cache:
                 continue
             try:
@@ -2113,7 +2117,7 @@ if GROQ_KEY:
         new_count = 0
 
         # 캐시 히트율 70% 이상이면 스킵
-        keys = [d['title'][:30] for d in items[:max_new]]
+        keys = [d.get('url', d['title'])[:60] for d in items[:max_new]]
         hit_count = sum(1 for k in keys if k in cache)
         hit_rate = hit_count / len(keys) if keys else 0
         if hit_rate >= 0.7:
@@ -2121,7 +2125,7 @@ if GROQ_KEY:
             return cache
 
         for d in items[:max_new]:
-            key = d['title'][:30]
+            key = d.get('url', d['title'])[:60]
             if key in cache:
                 continue
             try:
