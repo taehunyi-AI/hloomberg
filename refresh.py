@@ -1221,7 +1221,7 @@ BLACKLIST_KW = [
     '젠더','페미','혐오','성차별',
     # ── 홍보성·협회
     '홈쇼핑','협회장','판로','지원사업','박람회','전시회',
-    '수상','퇴임','인사발령',
+    '수상','퇴임','인사발령','감사패','고향사랑기부제',
     # ── 영문 비경제
     'celebrity','entertainment','sports','football','basketball','cricket',
     'hollywood','oscar','grammy','divorce','wedding','scandal','concert',
