@@ -97,35 +97,4 @@ jobs:
         run: |
           echo "GitHub Pages 배포 대기 (60초)..."
           sleep 60
-          python3 - <<'PYEOF'
-import json, requests, os, time
-f = '/tmp/tg_messages.json'
-bot   = os.environ.get('TELEGRAM_BOT_TOKEN','')
-chat  = os.environ.get('TELEGRAM_CHAT_ID','')
-if not bot or not chat: exit(0)
-try:
-    msgs = json.load(open(f, encoding='utf-8'))
-except Exception: exit(0)
-for i, m in enumerate(msgs):
-    for attempt in range(2):
-        try:
-            r = requests.post(
-                f'https://api.telegram.org/bot{bot}/sendMessage',
-                json={'chat_id': int(chat), 'text': m['text'], 'parse_mode': 'HTML'},
-                timeout=15
-            )
-            j = r.json()
-            if j.get('ok'):
-                print(f'[TG] 전송 OK (message_id={j["result"]["message_id"]})')
-            else:
-                print(f'[TG] 전송 실패: {j.get("error_code")} {j.get("description")}')
-            break
-        except Exception as e:
-            if attempt == 0:
-                print(f'[TG] 재시도... ({e})')
-                time.sleep(3)
-            else:
-                print(f'[TG] 예외: {e}')
-    if i < len(msgs)-1: time.sleep(1)
-print(f'[TG] 총 {len(msgs)}건 전송 완료')
-PYEOF
+          echo "aW1wb3J0IGpzb24sIHJlcXVlc3RzLCBvcywgdGltZQpmID0gJy90bXAvdGdfbWVzc2FnZXMuanNvbicKYm90ID0gb3MuZW52aXJvbi5nZXQoJ1RFTEVHUkFNX0JPVF9UT0tFTicsJycpCmNoYXQgPSBvcy5lbnZpcm9uLmdldCgnVEVMRUdSQU1fQ0hBVF9JRCcsJycpCmlmIG5vdCBib3Qgb3Igbm90IGNoYXQ6CiAgICBleGl0KDApCnRyeToKICAgIG1zZ3MgPSBqc29uLmxvYWQob3BlbihmLCBlbmNvZGluZz0ndXRmLTgnKSkKZXhjZXB0IEV4Y2VwdGlvbjoKICAgIGV4aXQoMCkKZm9yIGksIG0gaW4gZW51bWVyYXRlKG1zZ3MpOgogICAgZm9yIGF0dGVtcHQgaW4gcmFuZ2UoMik6CiAgICAgICAgdHJ5OgogICAgICAgICAgICByID0gcmVxdWVzdHMucG9zdCgKICAgICAgICAgICAgICAgIGYnaHR0cHM6Ly9hcGkudGVsZWdyYW0ub3JnL2JvdHtib3R9L3NlbmRNZXNzYWdlJywKICAgICAgICAgICAgICAgIGpzb249eydjaGF0X2lkJzogaW50KGNoYXQpLCAndGV4dCc6IG1bJ3RleHQnXSwgJ3BhcnNlX21vZGUnOiAnSFRNTCd9LAogICAgICAgICAgICAgICAgdGltZW91dD0xNQogICAgICAgICAgICApCiAgICAgICAgICAgIGogPSByLmpzb24oKQogICAgICAgICAgICBpZiBqLmdldCgnb2snKToKICAgICAgICAgICAgICAgIHByaW50KGYnW1RHXSBPSyAoaWQ9e2pbInJlc3VsdCJdWyJtZXNzYWdlX2lkIl19KScpCiAgICAgICAgICAgIGVsc2U6CiAgICAgICAgICAgICAgICBwcmludChmJ1tUR10gRkFJTDoge2ouZ2V0KCJlcnJvcl9jb2RlIil9IHtqLmdldCgiZGVzY3JpcHRpb24iKX0nKQogICAgICAgICAgICBicmVhawogICAgICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgICAgICAgICAgaWYgYXR0ZW1wdCA9PSAwOgogICAgICAgICAgICAgICAgdGltZS5zbGVlcCgzKQogICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgcHJpbnQoZidbVEddIEVSUjoge2V9JykKICAgIGlmIGkgPCBsZW4obXNncyktMToKICAgICAgICB0aW1lLnNsZWVwKDEpCnByaW50KGYnW1RHXSB7bGVuKG1zZ3MpfeqxtCDsoITshqEg7JmE66OMJykK" | base64 -d | python3
