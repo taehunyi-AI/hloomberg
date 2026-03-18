@@ -12,6 +12,9 @@ on:
     - cron: '7 21,22,23 * * 0,1,2,3,4'
     # UTC 00:07-14:07: 월(1)~금(5)
     - cron: '7 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 * * 1,2,3,4,5'
+    # 종목분석 전용 — KST 08:07 (UTC 23:07 일~목) / KST 20:07 (UTC 11:07 월~금)
+    - cron: '7 23 * * 0,1,2,3,4'
+    - cron: '7 11 * * 1,2,3,4,5'
   workflow_dispatch:
     inputs:
       mode:
@@ -28,7 +31,7 @@ env:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v5
@@ -71,6 +74,8 @@ jobs:
             ${{
               (github.event.inputs.mode == 'stock') && 'stock' ||
               (github.event.inputs.mode == 'partial') && 'partial' ||
+              (github.event.schedule == '7 23 * * 0,1,2,3,4') && 'stock' ||
+              (github.event.schedule == '7 11 * * 1,2,3,4,5') && 'stock' ||
               'full'
             }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
