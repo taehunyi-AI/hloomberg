@@ -2640,24 +2640,31 @@ def issues_to_js(items):
     lines.append(']')
     return '\n'.join(lines)
 
-issues_js = f'const GLOBAL_ISSUES=\n{issues_to_js(global_issues)};\nconst DOMESTIC_ISSUES=\n{issues_to_js(domestic_issues)};'
+issues_js = f'const GLOBAL_ISSUES=\n{issues_to_js(global_issues)};\nconst DOMESTIC_ISSUES=\n{issues_to_js(domestic_issues)};\nvar ALL_ISSUES=GLOBAL_ISSUES.concat(DOMESTIC_ISSUES);'
 html = patch(html, '// ##ISSUES_DATA_S##', '// ##ISSUES_DATA_E##', '\n' + issues_js + '\n')
 
 # ── 이슈 HTML 리스트
-def issue_list_html(items, type_prefix):
-    icons = ['🔴','🟠','🟡','🟢','🔵','🟣','⚪','⚫','🔶','🔷']
+def issue_list_html(items):
+    """글로벌+국내 이슈 통합 목록 HTML"""
+    IMPACT_COLOR = {'상': 'var(--red)', '중': 'var(--yel)', '하': 'var(--txt3)'}
+    SOURCE_LABEL = {'gl': '🌐', 'kr': '🇰🇷'}
     h = ''
     for i, d in enumerate(items):
-        h += (f'<div class="li" onclick="showIssue(\'{type_prefix}\',{i})" id="{type_prefix}-iss-{i}">'
-              f'<div class="li-tag"><span>{icons[i%10]}</span>'
-              f'<span class="li-time">임팩트: {HE(d.get("impact","-"))}</span></div>'
+        src_icon = SOURCE_LABEL.get(d.get('_src', 'gl'), '🌐')
+        imp_col  = IMPACT_COLOR.get(d.get('impact', '중'), 'var(--txt3)')
+        imp_tag  = f'<span style="color:{imp_col};font-weight:700">임팩트 {HE(d.get("impact","-"))}</span>'
+        h += (f'<div class="li" onclick="showIssue(\'all\',{i})" id="all-iss-{i}">'
+              f'<div class="li-tag">{src_icon} {imp_tag}</div>'
               f'<div class="li-title">{i+1}. {HE(d.get("title",""))}</div></div>')
     if not items: h = '<div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">분석 없음</div>'
     return h
 
-html = patch(html, '<!-- ##ISSUES_GL_S## -->', '<!-- ##ISSUES_GL_E## -->', '\n' + issue_list_html(global_issues, 'gl') + '\n')
-html = patch(html, '<!-- ##ISSUES_KR_S## -->', '<!-- ##ISSUES_KR_E## -->', '\n' + issue_list_html(domestic_issues, 'kr') + '\n')
-print(f'  ISSUES: 글로벌 {len(global_issues)}개 · 국내 {len(domestic_issues)}개')
+# 글로벌+국내 이슈 통합 — _src 태그 추가
+for _d in global_issues:  _d['_src'] = 'gl'
+for _d in domestic_issues: _d['_src'] = 'kr'
+all_issues_merged = global_issues + domestic_issues
+html = patch(html, '<!-- ##ISSUES_GL_S## -->', '<!-- ##ISSUES_GL_E## -->', '\n' + issue_list_html(all_issues_merged) + '\n')
+print(f'  ISSUES: 글로벌 {len(global_issues)}개 · 국내 {len(domestic_issues)}개 → 통합 {len(all_issues_merged)}개')
 
 # ─────────────────────────────────────────
 # 7. 종목 상세분석 (1시간마다 STOCK_MODE=1)
