@@ -1949,20 +1949,56 @@ if GROQ_KEY and AI_PARTIAL:
             step2_resp = call_claude(
                 'claude-sonnet-4-20250514',
                 '한국주식 포트폴리오 매니저. 한국어. JSON만 출력. 문어체로 작성. 존댓말 사용 금지.',
-                f'[Step1 시그널]\n{step1_str}\n\n'
-                f'[KIS 실시간 시세]\n{kis_price_str}\n\n'
-                f'[외국인/기관 수급]\n{foreign_str}\n{inst_str}\n\n'
-                f'[등락률 상위]\n{fluct_str}\n\n'
-                f'시그널 강도·수급·모멘텀 종합해 스윙 후보 20개 선별. 중복 제거, 섹터 분산 고려.\n\n'
-                f'출력형식(JSON 배열):\n'
-                f'[{{"name":"종목명","code":"123456","mkt":"KOSPI/KOSDAQ",'
-                f'"score":85,"signal_strength":"강/중/약","supply_demand":"긍정/중립/부정",'
-                f'"sector":"섹터","reason":"선별 근거"}},...]',
+                '\n'.join(filter(None, [
+                    f'[Step1 시그널]\n{step1_str}',
+                    f'[KIS 실시간 시세]\n{kis_price_str}',
+                    f'[외국인 순매수 (실제코드 포함)]\n' + '\n'.join([
+                        f"  {f.get('name','')}({f.get('code','?')}) {f.get('net_amt',0):,}백만원"
+                        for f in foreign_buy[:10]
+                    ]) if foreign_buy else None,
+                    f'[기관 순매수 (실제코드 포함)]\n' + '\n'.join([
+                        f"  {f.get('name','')}({f.get('code','?')}) {f.get('net_amt',0):,}백만원"
+                        for f in institution_buy[:10]
+                    ]) if institution_buy else None,
+                    f'[등락률 상위 (실제코드 포함)]\n' + '\n'.join([
+                        f"  {r.get('name','')}({r.get('code','?')}) {r.get('rate',0):+.1f}%"
+                        for r in fluctuation_rank[:15]
+                    ]) if fluctuation_rank else None,
+                    '⚠️ 중요: code는 반드시 위 목록의 실제 6자리 종목코드만 사용. 모르면 해당 종목 제외.',
+                    '시그널 강도·수급·모멘텀 종합해 스윙 후보 20개 선별. 중복 제거, 섹터 분산 고려.',
+                    '출력형식(JSON 배열):',
+                    '[{"name":"삼성전자","code":"005930","mkt":"KOSPI",'
+                    '"score":85,"signal_strength":"강","supply_demand":"긍정",'
+                    '"sector":"반도체","reason":"선별 근거"},...]',
+                ])),
                 2500
             )
             step2_candidates = extract_json_array(step2_resp) or []
+            # 방법2: name으로 실제 코드 역조회 보정 + 더미코드(123456) 제거
+            _code_db = {}
+            for _src in [foreign_buy, institution_buy, fluctuation_rank, volume_rank_data]:
+                for _item in (_src or []):
+                    _n = _item.get('name','').strip()
+                    _c = str(_item.get('code',''))
+                    if _n and _c and _c != '123456':
+                        _code_db[_n] = _c
+            # kis_stock_data 코드도 추가
+            for _c, _d in (kis_stock_data or {}).items():
+                _code_db[_d.get('name', '')] = _c
+            _fixed = []
+            for _s in step2_candidates:
+                _nm = _s.get('name', '').strip()
+                _cd = str(_s.get('code', ''))
+                if _cd == '123456' and _nm in _code_db:
+                    _s['code'] = _code_db[_nm]
+                    print(f'    코드 보정: {_nm} → {_s["code"]}')
+                if str(_s.get('code', '')) != '123456':
+                    _fixed.append(_s)
+                else:
+                    print(f'    더미코드 제거: {_nm}(123456)')
+            step2_candidates = _fixed
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
-            for _s in (step2_candidates or [])[:3]:
+            for _s in step2_candidates[:3]:
                 print(f'      → {_s.get("name","?")}({_s.get("code","?")}) score={_s.get("score","?")}')
             if not step2_candidates and step2_resp:
                 print(f'    Step2 응답 앞 200자: {step2_resp[:200]}')
