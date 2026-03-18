@@ -1558,10 +1558,10 @@ def parse_issues_json(text):
     return []
 
 
-# Groq 호출 설정
-GROQ_CALL_INTERVAL = 8   # 초: 연속 호출 간 최소 대기
-GROQ_RETRY_WAIT    = 15  # 초: 429 재시도 대기
-GROQ_MAX_RETRY     = 3
+# Groq 호출 설정 (무료 티어: 6,000 TPM / 30 RPM)
+GROQ_CALL_INTERVAL = 12  # 초: 연속 호출 간 최소 대기 (8→12)
+GROQ_RETRY_WAIT    = 30  # 초: 429 재시도 대기 (15→30)
+GROQ_MAX_RETRY     = 5   # 재시도 횟수 (3→5)
 _groq_last_call    = 0.0
 
 def call_groq(model, system, user, max_tokens=3000):
@@ -1842,6 +1842,7 @@ if GROQ_KEY and AI_PARTIAL:
             print(f'    Step1 완료: {len(step1_signals)}개 시그널')
 
             # ── Step 2: 시그널 + KIS 수급 결합, 후보 20개 선별
+            time.sleep(15)
             print('    Step2: 후보 20개 선별...')
             step1_str = '\n'.join([
                 f"- {s.get('name','')}({s.get('code','')}) {s.get('signal','')} [{s.get('urgency','')}]: {s.get('reason','')}"
@@ -1879,6 +1880,7 @@ if GROQ_KEY and AI_PARTIAL:
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
 
             # ── Step 3: 리스크 필터링 → TOP10 확정
+            time.sleep(15)
             print('    Step3: 리스크 필터링 → TOP10 확정...')
             step2_str = '\n'.join([
                 f"- {c.get('name','')}({c.get('code','')}/{c.get('mkt','')}) "
@@ -1914,6 +1916,7 @@ if GROQ_KEY and AI_PARTIAL:
             print(f'    Step3 완료: TOP{len(swing_top10)} 확정')
 
             # ── Step 4: 종목별 매매전략 생성 (목표가/손절가)
+            time.sleep(15)
             print('    Step4: 매매전략 생성...')
             top10_str = '\n'.join([
                 f"- {s['name']}({s.get('code','')}/{s.get('mkt','')}) "
