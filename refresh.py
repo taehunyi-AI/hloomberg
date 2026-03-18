@@ -312,7 +312,8 @@ def fetch_kis_price(code, token):
         p0 = float(d.get('stck_sdpr', 0) or 0)
         if p > 0:
             return {'p': p, 'c': c, 'p0': p0, 'src': 'KIS'}
-        # 장 마감 시 Yahoo Finance fallback (.KS → .KQ 순서로 시도)
+        # KIS 가격 0 → Yahoo Finance fallback (.KS → .KQ 순서로 시도)
+        _yahoo_tried = []
         for suffix in ('.KS', '.KQ'):
             sym = code + suffix
             try:
@@ -326,9 +327,12 @@ def fetch_kis_price(code, token):
                     if p > 0:
                         print(f'    KIS 종목 {code} → Yahoo fallback({suffix}): {p:,}원 ({c:+.2f}%)')
                         return {'p': p, 'c': c, 'src': 'Yahoo'}
-            except Exception:
-                pass
-        print(f'    KIS 종목 {code} 가격 0 (장 마감/데이터 없음)')
+                    _yahoo_tried.append(f'{suffix}:p=0')
+                else:
+                    _yahoo_tried.append(f'{suffix}:HTTP{r2.status_code}')
+            except Exception as _ye:
+                _yahoo_tried.append(f'{suffix}:{str(_ye)[:30]}')
+        print(f'    KIS 종목 {code} 가격 0 — KIS:stck_prpr=0, Yahoo:{_yahoo_tried}')
     except Exception as e:
         print(f'    KIS 종목 {code} 예외: {e}')
     return None
