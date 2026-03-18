@@ -2063,7 +2063,16 @@ if GROQ_KEY and AI_PARTIAL:
             _fixed = []  # _code_db는 Step2 호출 전에 구성됨
             # 전각문자 → 반각 정규화 (AI가 ＳＯｉｌ 형태로 출력하는 경우 대응)
             def _normalize(s):
-                return ''.join(chr(ord(c) - 0xFEE0) if 0xFF01 <= ord(c) <= 0xFF5E else c for c in s).strip()
+                result = []
+                for c in s:
+                    code = ord(c)
+                    if 0xFF01 <= code <= 0xFF5E:   # 전각→반각
+                        result.append(chr(code - 0xFEE0))
+                    elif 0x3040 <= code <= 0x30FF: # 히라가나/카타카나 제거
+                        continue
+                    else:
+                        result.append(c)
+                return ''.join(result).strip()
             for _s in step2_candidates:
                 _s['name'] = _normalize(_s.get('name', ''))
             _DUMMY_CODES = {'123456', '없음', 'None', '', '0'}
@@ -2178,11 +2187,14 @@ if GROQ_KEY and AI_PARTIAL:
             for item in step4_list:
                 nm = item.get('name', '')
                 if nm:
+                    def _to_int(v):
+                        try: return int(str(v).replace(',','').replace(' ',''))
+                        except: return 0
                     swing_quick[nm] = {
                         'signal': item.get('signal', ''),
                         'reason': item.get('reason', ''),
-                        'target': item.get('target', 0),
-                        'stop':   item.get('stop', 0),
+                        'target': _to_int(item.get('target', 0)),
+                        'stop':   _to_int(item.get('stop', 0)),
                         'ts':     TS_SHORT
                     }
 
