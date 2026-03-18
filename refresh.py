@@ -22,8 +22,8 @@ GH_PAT        = os.environ.get('GH_PAT', '')
 GITHUB_REPO   = os.environ.get('GITHUB_REPOSITORY', '')
 
 # Groq 모델 (항상 Groq 사용)
-GROQ_MODEL_HIGH = 'llama-3.3-70b-versatile'  # 고품질 분석
-GROQ_MODEL_FAST = 'llama-3.1-8b-instant'     # 빠른 요약/추출
+GROQ_MODEL_HIGH = 'openai/gpt-oss-120b'  # 고품질 분석
+GROQ_MODEL_FAST = 'openai/gpt-oss-20b'      # 빠른 요약/추출
 HTML_FILE     = 'hloomberg.html'
 
 # AI_MODE: full=전체AI(KST 08:00), partial=종합+TOP10(KST 20:00), ''=없음(매 5분)
@@ -620,20 +620,6 @@ def fetch_yahoo(sym):
             time.sleep(0.2)
     return None
 
-def fetch_naver_price(sym):
-    try:
-        if sym == '^KS11':   url = 'https://m.stock.naver.com/api/index/KOSPI/basic'
-        elif sym == '^KQ11': url = 'https://m.stock.naver.com/api/index/KOSDAQ/basic'
-        elif sym == 'USDKRW=X': url = 'https://m.stock.naver.com/api/stock/USDKRW/basic'
-        elif sym.endswith('.KS'): url = f'https://m.stock.naver.com/api/stock/{sym[:-3]}/basic'
-        else: return None
-        r = SESS.get(url, timeout=6, headers={'Referer':'https://finance.naver.com'})
-        if not r.ok: return None
-        j = r.json()
-        p = float(str(j.get('closePrice',0)).replace(',',''))
-        c = float(re.sub(r'[^0-9.\-]','', str(j.get('fluctuationsRatio',0))) or '0')
-        return {'p': p, 'c': c, 'src': 'Naver'} if p > 0 else None
-    except: return None
 
 def fetch_stooq(sym):
     try:
@@ -649,7 +635,7 @@ def fetch_stooq(sym):
     except: return None
 
 def get_price(key, sym):
-    for fn in (fetch_yahoo, fetch_naver_price, fetch_stooq):
+    for fn in (fetch_yahoo, fetch_stooq):
         r = fn(sym)
         if r: return r
     return None
@@ -688,22 +674,9 @@ if kis_token:
                 r['name'] = stock_code_map.get(code, code)
             kis_stock_data[code] = r
             print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-        else:
-            # 2차: Naver 금융에서 보정
-            try:
-                _nr = safe_get(f'https://finance.naver.com/item/main.naver?code={code}', timeout=5)
-                if _nr:
-                    import re as _re_nv
-                    _pm = _re_nv.search(r'<p class="no_today">.*?<em[^>]*>([\d,]+)</em>', _nr.text, _re_nv.DOTALL)
-                    _cm = _re_nv.search(r'<em class="[^"]*?(up|down)[^"]*">([\d.]+)</em>', _nr.text)
-                    if _pm:
-                        _p = int(_pm.group(1).replace(',',''))
-                        _c = float(_cm.group(2)) if _cm else 0.0
-                        _c = _c if (_cm and 'up' in _cm.group(1)) else -_c
-                        kis_stock_data[code] = {'p': _p, 'c': _c, 'name': stock_code_map.get(code, code), 'src': 'Naver'}
-                        print(f"  OK  {code}  {_p:>10,}원  ({'+' if _c>=0 else ''}{_c:.2f}%)  [Naver보정]")
-            except Exception as _ne:
-                print(f"  SKIP {code} (KIS+Naver 모두 실패: {_ne})")
+        # Yahoo fallback은 fetch_kis_price 내부에서 자동 처리됨
+        if not r:
+            print(f'  SKIP {code} (KIS+Yahoo 모두 실패)')
         time.sleep(0.05)
     print(f'  KIS 완료: 지수 + {len(kis_stock_data)}개 종목')
 
@@ -1622,10 +1595,9 @@ import collections as _col
 
 class _SlidingWindow:
     # Dev Tier 98% 목표
-    # llama-3.3-70b: 300,000 TPM × 98% = 294,000
-    # llama-3.1-8b:  200,000 TPM × 98% = 196,000
-    TPM_70B   = 294000
-    TPM_8B    = 196000
+    # gpt-oss-120b: 250,000 TPM × 98% = 245,000
+    TPM_70B   = 245000
+    TPM_8B   = 245000
     WINDOW    = 60.0    # 슬라이딩 윈도우 60초
 
     def __init__(self):
@@ -1874,9 +1846,11 @@ if GROQ_KEY and AI_PARTIAL:
             # 본문 포맷팅
             body = body.replace('**','').replace('*','')
             body = re.sub(r'^- ', '• ', body, flags=re.MULTILINE)
+            # 번호 앞 줄바꿈: '2. ' 등 앞에 빈 줄 삽입
+            body = re.sub(r'([.!?]\s+)(\d+\.\s)', r'\1\n\n\2', body)
             # 단락 구분 — 빈줄 기준으로 <p> 태그 생성
             paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
-            body_html = ''.join(f'<p>{HE(pp)}</p>' for pp in paras) if paras else HE(body)
+            body_html = ''.join(f'<p style="margin:0 0 12px 0">{HE(pp)}</p>' for pp in paras) if paras else HE(body)
             section_html = (
                 f'<div class="ai-section">'
                 f'<h3>{icon} {HE(label)}</h3>'
@@ -2347,7 +2321,7 @@ if GROQ_KEY:
                 t_html = ''.join([
                     f'<p style="margin:0 0 10px 0;color:var(--blue);font-weight:600">{p}</p>'
                     if p.startswith('<strong>') else
-                    f'<p style="margin:0 0 6px 0;line-height:1.6">{HE(p)}</p>'
+                    f'<p style="margin:0 0 12px 0;line-height:1.6">{HE(p)}</p>'
                     for p in paras
                 ])
                 cache[key] = {'html': t_html, 'ts': TS_SHORT}
