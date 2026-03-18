@@ -2217,8 +2217,8 @@ gl_news_summaries = {}
 dart_summaries    = {}
 
 if GROQ_KEY:
-    # 캐시 로드 — /tmp/summaries_cache.json (HTML과 독립 저장)
-    SUMMARIES_CACHE_FILE = '/tmp/summaries_cache.json'
+    # 캐시 로드 — summaries_cache.json (repo 루트, git commit으로 영속 보장)
+    SUMMARIES_CACHE_FILE = 'summaries_cache.json'  # repo 루트 — git commit으로 영속 보장
     _sc = {}
     try:
         with open(SUMMARIES_CACHE_FILE, encoding='utf-8') as f:
@@ -2441,7 +2441,7 @@ def summaries_to_js(cache, var_name):
     # JSON 포맷으로 저장 — extract_cache의 json.loads()와 호환
     return f'\nconst {var_name}=' + json.dumps(cache, ensure_ascii=False) + ';\n'
 
-# 캐시 파일 저장 (/tmp/summaries_cache.json — GitHub Actions cache로 유지)
+# 캐시 파일 저장 (summaries_cache.json — repo 루트, git commit으로 영속 보장)
 try:
     _cache_data = {
         '_meta': f'{NOW.strftime("%Y-%m-%d %H:%M")} KST — kr:{len(kr_news_summaries)} gl:{len(gl_news_summaries)} dart:{len(dart_summaries)}',
