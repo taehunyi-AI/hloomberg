@@ -1558,30 +1558,39 @@ def parse_issues_json(text):
     return []
 
 
-# Groq 토큰 버킷 (무료 티어 TPM 90% = 5,400 목표)
-# API latency 동안 버킷이 자동 충전 → 토큰량 비례 대기, 경량 호출 가속
-class _TokenBucket:
-    capacity = 5400.0   # TPM 90% 목표
-    tokens   = 5400.0   # 현재 잔여 (시작 시 가득)
-    refill   = 90.0     # tok/초 (= 5,400 / 60)
-    last_t   = 0.0
+# Groq TPM 슬라이딩 윈도우 (무료 티어 90% = 5,400 TPM 목표)
+# Groq는 '지난 60초 누적 토큰' 기준으로 측정 (슬라이딩 윈도우)
+# TokenBucket(충전 속도 기반)은 이 구조와 맞지 않아 429 발생 → 슬라이딩 윈도우로 교체
+import collections as _col
+
+class _SlidingWindow:
+    TPM_LIMIT = 5400    # 90% 목표 (Groq 한도 6,000)
+    WINDOW    = 60.0    # 슬라이딩 윈도우 60초
+
+    def __init__(self):
+        self._history = []  # [(abs_time, tokens), ...]
 
     def consume(self, tokens):
         import time as _t
-        now = _t.time()
-        if self.last_t > 0:
-            recharged = (now - self.last_t) * self.refill
-            self.tokens = min(self.capacity, self.tokens + recharged)
-        self.last_t = now
-        if self.tokens < tokens:
-            wait = (tokens - self.tokens) / self.refill
-            print(f'    [버킷] {tokens:,}tok 필요, 잔여 {self.tokens:.0f}tok → {wait:.1f}초 대기')
+        while True:
+            now = _t.time()
+            # 윈도우 밖 항목 제거
+            self._history = [(ts, tok) for ts, tok in self._history
+                             if ts > now - self.WINDOW]
+            recent = sum(tok for _, tok in self._history)
+            if recent + tokens <= self.TPM_LIMIT:
+                self._history.append((now, tokens))
+                return
+            # 윈도우 내 가장 오래된 항목이 만료될 때까지 대기
+            oldest = min(ts for ts, _ in self._history)
+            wait = oldest + self.WINDOW - now + 0.5
+            print(f'    [TPM] {recent:,}+{tokens:,}>{self.TPM_LIMIT} → {wait:.1f}초 대기')
             _t.sleep(wait)
-            self.tokens = 0.0
-        else:
-            self.tokens -= tokens
 
-_bucket = _TokenBucket()
+    def reset(self):
+        self._history.clear()
+
+_bucket = _SlidingWindow()
 
 def call_groq(model, system, user, max_tokens=3000):
     """Groq API 전용 호출 — TokenBucket으로 TPM 90% 유지"""
@@ -1607,17 +1616,16 @@ def call_groq(model, system, user, max_tokens=3000):
         retry_after = int(resp.headers.get('retry-after', 30))
         print(f'    Groq 429 — {retry_after}초 대기 후 버킷 리셋')
         time.sleep(retry_after)
-        _bucket.tokens = _bucket.capacity  # 버킷 리셋
+        _bucket.reset()  # 슬라이딩 윈도우 초기화
         return ''  # 이번 호출은 건너뜀
     if not resp.ok:
         raise Exception(f'Groq HTTP {resp.status_code}: {resp.text[:200]}')
     raw = resp.json()['choices'][0]['message']['content'].strip()
-    # 실제 사용 토큰으로 버킷 보정 (과추정 시 잔여 반환)
+    # 실제 토큰 사용량 로그 (슬라이딩 윈도우는 est_tokens 기준 예약 유지)
     usage = resp.json().get('usage', {})
     actual = usage.get('total_tokens', 0)
-    if actual > 0 and actual < est_tokens:
-        refund = est_tokens - actual
-        _bucket.tokens = min(_bucket.capacity, _bucket.tokens + refund)
+    if actual > 0:
+        pass  # 실제값 확인용 — 슬라이딩 윈도우는 예약 기반으로 유지
     return re.sub(r'^```(?:json)?', '', raw).rstrip('`').strip()
 
 # alias — 기존 call_claude/call_ai 호출 호환
