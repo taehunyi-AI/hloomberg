@@ -1681,60 +1681,89 @@ def call_claude(model, system, user, max_tokens=3000):
     return call_ai(model, system, user, max_tokens)
 
 def extract_json_array(text):
-    """JSON 배열/객체 모두 처리. 주석·trailing comma·불완전 JSON·잘린 응답 대응."""
+    """JSON 배열/객체 모두 처리 — 자동 복구 6단계.
+    처리: 코드블록, // 주석, trailing comma, 작은따옴표,
+          제어문자, 불완전 배열, 객체→배열 변환, 객체단위 파싱.
+    """
     if not text:
         return None
-    text = re.sub(r'```(?:json)?\s*', '', text).strip().rstrip('`').strip()
-    text = re.sub(r'//[^\n]*', '', text)
-    text = re.sub(r',\s*([}\]])', r'\1', text)
 
-    def _try_parse(s):
+    def _try(s):
         try: return json.loads(s)
-        except Exception: return None
+        except: return None
 
-    def _obj_to_list(obj):
-        if not isinstance(obj, dict): return None
-        result = []
-        for k, v in obj.items():
-            if isinstance(v, dict):
-                item = {'name': k}; item.update(v); result.append(item)
-            elif isinstance(v, list): result.extend(v)
-        return result if result else [obj]
+    def _clean(s):
+        s = re.sub(r'```(?:json)?\s*', '', s).strip().rstrip('`').strip()
+        s = re.sub(r'//[^\n]*', '', s)          # // 주석 제거
+        s = re.sub(r',\s*([}\]])', r'\1', s)   # trailing comma
+        s = re.sub(r'[\x00-\x1f\x7f]', ' ', s) # 제어문자
+        return s
 
-    def _recover_arr(s, start):
-        last = s.rfind('},', start)
-        if last > start:
-            r = _try_parse(s[start:last+1] + ']')
+    def _clean_quotes(s):
+        # JSON string 내부 작은따옴표 → 제거 ('text' → text)
+        return re.sub(r"'([^']*?)'", r'\1', s)
+
+    # 1단계: 원본 직접 파싱
+    r = _try(text)
+    if isinstance(r, list): return r
+    if isinstance(r, dict): pass  # 5단계에서 처리
+
+    # 2단계: 기본 클리닝
+    t = _clean(text)
+    r = _try(t)
+    if isinstance(r, list): return r
+
+    # 3단계: 작은따옴표 처리
+    t2 = _clean_quotes(t)
+    r = _try(t2)
+    if isinstance(r, list): return r
+
+    # 4단계: 배열 구간 추출 후 파싱
+    for src in (t2, t, text):
+        s1, s2 = src.find('['), src.rfind(']')
+        if s1 >= 0 and s2 > s1:
+            r = _try(src[s1:s2+1])
             if isinstance(r, list): return r
-        return None
+            # 불완전 배열 복구
+            cand = src[s1:s2+1]
+            lb = cand.rfind('},')
+            if lb > 0:
+                r = _try(cand[:lb+1] + ']')
+                if isinstance(r, list): return r
+        # [ 있고 ] 없는 불완전 배열
+        if s1 >= 0 and s2 < s1:
+            cand = src[s1:]
+            for sep in ('},', '}'):
+                lb = cand.rfind(sep)
+                if lb > 0:
+                    r = _try(cand[:lb+1] + ']')
+                    if isinstance(r, list): return r
 
-    def _recover_obj(s, start):
-        last = s.rfind('},', start)
-        if last > start:
-            r = _try_parse(s[start:last+1] + '}')
-            if isinstance(r, dict): return _obj_to_list(r)
-        return None
+    # 5단계: 객체 형태 → 배열 변환
+    for src in (t2, t):
+        o1, o2 = src.find('{'), src.rfind('}')
+        if o1 >= 0 and o2 > o1:
+            obj = _try(src[o1:o2+1])
+            if isinstance(obj, dict):
+                result = []
+                for k, v in obj.items():
+                    if isinstance(v, dict):
+                        item = {'name': k}; item.update(v); result.append(item)
+                    elif isinstance(v, list):
+                        result.extend(v)
+                if result: return result
+                return [obj]
 
-    s1, s2 = text.find('['), text.rfind(']'  )
-    if s1 >= 0 and s2 > s1:
-        r = _try_parse(text[s1:s2+1])
-        if isinstance(r, list): return r
-        rec = _recover_arr(text, s1)
-        if rec: return rec
-
-    if s1 >= 0 and (s2 < 0 or s2 < s1):
-        rec = _recover_arr(text, s1)
-        if rec: return rec
-
-    o1, o2 = text.find('{'), text.rfind('}'  )
-    if o1 >= 0 and o2 > o1:
-        obj = _try_parse(text[o1:o2+1])
-        if isinstance(obj, dict): return _obj_to_list(obj)
-        rec = _recover_obj(text, o1)
-        if rec: return rec
+    # 6단계: 마지막 수단 — 객체 단위 개별 파싱
+    results = []
+    for src in (t2, t):
+        for m in re.finditer(r'\{[^{}]+\}', src, re.DOTALL):
+            r = _try(m.group())
+            if r and isinstance(r, dict) and len(r) >= 2:
+                results.append(r)
+        if results: return results
 
     return None
-
 def translate_titles(items):
     to_tr = [(i, n) for i, n in enumerate(items) if not re.search(r'[가-힣]', n['title'])]
     if not to_tr or not GROQ_KEY: return
