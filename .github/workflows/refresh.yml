@@ -48,6 +48,7 @@ jobs:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
+            /tmp/summaries_cache.json
           key: kis-token-${{ github.run_id }}
           restore-keys: |
             kis-token-
@@ -88,6 +89,7 @@ jobs:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
+            /tmp/summaries_cache.json
           key: kis-token-${{ github.run_id }}
 
       - name: Commit & Push
