@@ -1982,6 +1982,19 @@ if GROQ_KEY and AI_PARTIAL:
                 for r in fluctuation_rank[:10]
             ]) if fluctuation_rank else '데이터 없음'
 
+            # KIS DB 기준 종목 마스터 구성 (Step2 프롬프트 주입용)
+            _code_db = {}
+            for _src in [foreign_buy, institution_buy, fluctuation_rank, volume_rank_data]:
+                for _item in (_src or []):
+                    _n = _item.get('name','').strip()
+                    _c = str(_item.get('code',''))
+                    if _n and _c and _c != '123456':
+                        _code_db[_n] = _c
+            # kis_stock_data 코드도 추가
+            for _c, _d in (kis_stock_data or {}).items():
+                _code_db[_d.get('name', '')] = _c
+            print(f'    [DB] KIS 마스터 종목: {len(_code_db)}개')
+
             step2_resp = call_claude(
                 'claude-sonnet-4-20250514',
                 '한국주식 포트폴리오 매니저. 한국어. JSON만 출력. 문어체로 작성. 존댓말 사용 금지.',
@@ -2000,7 +2013,10 @@ if GROQ_KEY and AI_PARTIAL:
                         f"  {r.get('name','')}({r.get('code','?')}) {r.get('rate',0):+.1f}%"
                         for r in fluctuation_rank[:15]
                     ]) if fluctuation_rank else None,
-                    '⚠️ 중요: code는 반드시 위 목록의 실제 6자리 종목코드만 사용. 모르면 해당 종목 제외.',
+                    # 선택 가능 종목 전체 목록 (이름·코드 DB 기준)
+                    '[선택 가능 종목 목록 — 아래 목록에서만 선택]\n' +
+                    '\n'.join([f'  {nm}({cd})' for nm, cd in sorted(_code_db.items())[:60]]),
+                    '⚠️ 규칙: name과 code는 반드시 위 목록의 이름·코드 그대로 사용. 목록에 없는 종목 제외.',
                     '시그널 강도·수급·모멘텀 종합해 스윙 후보 20개 선별. 중복 제거, 섹터 분산 고려.',
                     '출력형식(JSON 배열):',
                     '[{"name":"삼성전자","code":"005930","mkt":"KOSPI",'
@@ -2011,31 +2027,32 @@ if GROQ_KEY and AI_PARTIAL:
             )
             step2_candidates = extract_json_array(step2_resp) or []
             # 방법2: name으로 실제 코드 역조회 보정 + 더미코드(123456) 제거
-            _code_db = {}
-            for _src in [foreign_buy, institution_buy, fluctuation_rank, volume_rank_data]:
-                for _item in (_src or []):
-                    _n = _item.get('name','').strip()
-                    _c = str(_item.get('code',''))
-                    if _n and _c and _c != '123456':
-                        _code_db[_n] = _c
-            # kis_stock_data 코드도 추가
-            for _c, _d in (kis_stock_data or {}).items():
-                _code_db[_d.get('name', '')] = _c
-            _fixed = []
+            _fixed = []  # _code_db는 Step2 호출 전에 구성됨
             _DUMMY_CODES = {'123456', '없음', 'None', '', '0'}
+            import re as _re2
             for _s in step2_candidates:
                 _nm = _s.get('name', '').strip()
                 _cd = str(_s.get('code', '')).strip()
                 # 더미코드면 DB에서 실제코드 역조회
                 if _cd in _DUMMY_CODES and _nm in _code_db:
                     _s['code'] = _code_db[_nm]
-                    print(f'    코드 보정: {_nm} → {_s["code"]}')
-                # 유효 코드(6자리 숫자)인지 최종 확인
-                import re as _re2
-                if _re2.fullmatch(r'\d{6}', str(_s.get('code', ''))):
-                    _fixed.append(_s)
-                else:
-                    print(f'    더미코드 제거: {_nm}({_s.get("code","?")})')
+                    _cd = _s['code']
+                    print(f'    코드 보정: {_nm} → {_cd}')
+                # 6자리 숫자 검증
+                if not _re2.fullmatch(r'\d{6}', _cd):
+                    print(f'    제거(형식오류): {_nm}({_cd})')
+                    continue
+                # 마스터DB 검증: _code_db에 없는 종목 제거 (잘못된 코드 원천 차단)
+                _db_code = _code_db.get(_nm)
+                if _db_code and _db_code != _cd:
+                    # DB에 같은 종목명이 있는데 코드가 다르면 DB 코드로 보정
+                    print(f'    코드 보정(DB): {_nm} {_cd} → {_db_code}')
+                    _s['code'] = _db_code
+                elif not _db_code:
+                    # DB에 없는 종목 → AI가 추측한 코드일 가능성 → 제거
+                    print(f'    제거(DB미등록): {_nm}({_cd})')
+                    continue
+                _fixed.append(_s)
             step2_candidates = _fixed
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
             for _s in step2_candidates[:3]:
