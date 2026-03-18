@@ -1816,7 +1816,7 @@ if GROQ_KEY and AI_PARTIAL:
         print('  [1/3] 종합분석...')
         t = call_claude(
             'claude-sonnet-4-20250514',
-            '한국 증시 전문 애널리스트 겸 글로벌 매크로 전략가. 반드시 한국어만 사용(영어 약어 제외). 외국어가 나오면 즉시 한국어로 번역. 문어체. 존댓말 금지. 러시아어·일본어·중국어 절대 금지. 각 섹션 최소 3~5문장 이상 구체적으로 작성. 사실에 근거하여 작성할 것.',
+            '한국 증시 전문 애널리스트 겸 글로벌 매크로 전략가. 반드시 한국어만 사용(영어 약어 제외). 외국어 발견 시 즉시 한국어로 번역. 논문체로 작성(~이다, ~한다, ~됐다 종결어미 사용). 존댓말·합쇼체 절대 금지(~입니다, ~합니다, ~했습니다 금지). 러시아어·일본어·중국어 절대 금지. 각 섹션 최소 3~5문장 이상 구체적으로 작성. 사실에 근거하여 작성할 것.',
             combined_prompt + '\n\n아래 4개 섹션을 각각 구체적 수치와 근거를 포함해 상세히 분석:\n\n'
             '### BIAS\n'
             '뉴스 편향/오류 분석: 어떤 뉴스가 과장되거나 축소됐는지, 놓친 관점은 무엇인지, 시장이 어떤 부분을 오독하고 있는지 분석\n\n'
@@ -2292,12 +2292,23 @@ if GROQ_KEY:
                 continue
             try:
                 t = call_claude('claude-haiku-4-5-20251001', sys_prompt,
-                    f"제목: {n['title']}\n출처: {n.get('src','')}\n태그: {n.get('tag','')}", 1000)
+                    f"제목: {n['title']}\n출처: {n.get('src','')}\n태그: {n.get('tag','')}", 1500)
                 t = re.sub(r'^#{1,4}\s*(.+)$', r'<strong>\1</strong>', t, flags=re.MULTILINE)
                 t = t.replace('**','').replace('*','')
                 t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
                 # 단락 분리 (\n\n 기준), 단락 내 \n은 공백으로 합치기
-                paras = [' '.join(p.strip().split('\n')) for p in t.strip().split('\n\n') if p.strip()]
+                def _two_sent(p):
+                    """단락에서 정확히 두 문장만 추출"""
+                    import re as _re_s
+                    # 문장 분리: 마침표/!/?/。 뒤 공백 기준
+                    sents = _re_s.split(r'(?<=[.!?。])\s+', p.strip())
+                    sents = [s.strip() for s in sents if s.strip()]
+                    if len(sents) == 0: return None
+                    if len(sents) == 1: return sents[0]
+                    # 2문장으로 제한
+                    return sents[0] + ' ' + sents[1]
+                raw_paras = [' '.join(p.strip().split('\n')) for p in t.strip().split('\n\n') if p.strip()]
+                paras = [r for r in (_two_sent(p) for p in raw_paras) if r]
                 t_html = ''.join([
                     f'<p style="margin:0 0 10px 0;color:var(--blue);font-weight:600">{p}</p>'
                     if p.startswith('<strong>') else
@@ -2327,8 +2338,8 @@ if GROQ_KEY:
             if key in cache:
                 continue
             try:
-                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 반드시 한국어만 사용. 외국어가 나오면 즉시 한국어로 번역. 문어체. 존댓말 금지. 러시아어·일본어·중국어 절대 금지. 마크다운 헤더 금지. 투자자 관점 핵심 요약. 각 단락은 정확히 두 문장으로 작성. 공시 내용에 충실하게 요약할 것. 임의로 내용을 만들지 말 것.',
-                    f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}", 800)
+                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 반드시 한국어만 사용. 외국어 발견 시 즉시 한국어로 번역. 논문체로 작성(~이다, ~한다, ~됐다 종결어미 사용). 존댓말·합쇼체 절대 금지(~입니다, ~합니다, ~했습니다 금지). 러시아어·일본어·중국어 절대 금지. 마크다운 헤더 금지. 투자자 관점 핵심 요약. 각 단락은 정확히 두 문장으로 작성. 공시 원문 내용에 충실하게 요약. 임의로 내용을 만들지 말 것.',
+                    f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}", 1200)
                 t = re.sub(r'^#{1,4}\s*', '', t, flags=re.MULTILINE)
                 t = t.replace('**','').replace('*','')
                 t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
@@ -2345,11 +2356,15 @@ if GROQ_KEY:
         print(f'\n[뉴스/공시 요약] 10건 전체 처리 (Haiku 고속)...')
     # 기존 캐시에서 ### 마크다운이 남아있는 항목 제거 (재생성 대상)
     def _has_foreign(text):
-        """러시아어·히라가나·카타카나 포함 여부 감지"""
+        """오염 요약 감지: 러시아어·일본어·존댓말 포함 여부"""
         for c in text:
             cp = ord(c)
             if 0x0400 <= cp <= 0x04FF: return True  # 키릴 (러시아어)
             if 0x3040 <= cp <= 0x30FF: return True  # 히라가나/카타카나
+        # 존댓말 패턴 감지 (~입니다, ~합니다, ~했습니다)
+        import re as _re_fg
+        if _re_fg.search(r'(입니다|합니다|했습니다|됩니다|있습니다|없습니다|됩니다)', text):
+            return True
         return False
 
     def clean_cache(cache, max_size=150):
@@ -2371,9 +2386,9 @@ if GROQ_KEY:
     dart_summaries    = clean_cache(dart_summaries, max_size=150)
 
     kr_news_summaries = summarize_news(kr_news, kr_news_summaries, '국내뉴스',
-        '한국 금융/경제 뉴스 전문 기자. 반드시 한국어만 사용(영어 약어 제외). 외국어가 나오면 즉시 한국어로 번역. 문어체. 존댓말 금지. 마크다운 헤더 금지. 러시아어·일본어·중국어 절대 금지. 각 단락은 정확히 두 문장으로 작성. 배경/핵심/시장영향/투자시사점 4단락 완성. 사실에 근거하여 뉴스 제목과 내용에 충실하게 요약할 것. 임의로 내용을 만들지 말 것.', max_new=10)
+        '한국 금융/경제 뉴스 전문 기자. 반드시 한국어만 사용(영어 약어 제외). 외국어 발견 시 즉시 한국어로 번역. 논문체로 작성(~이다, ~한다, ~됐다 종결어미 사용). 존댓말·합쇼체 절대 금지(~입니다, ~합니다, ~했습니다 금지). 마크다운 헤더 금지. 러시아어·일본어·중국어 절대 금지. 각 단락은 정확히 두 문장으로 작성. 배경/핵심/시장영향/투자시사점 4단락 완성. 뉴스 원문 내용에 충실하게 요약. 임의로 내용을 만들지 말 것.', max_new=10)
     gl_news_summaries = summarize_news(gl_news, gl_news_summaries, '해외뉴스',
-        '글로벌 금융/경제 뉴스 전문 기자. 반드시 한국어만 사용(영어 약어 제외). 외국어가 나오면 즉시 한국어로 번역. 문어체. 존댓말 금지. 마크다운 헤더 금지. 러시아어·일본어·중국어 절대 금지. 각 단락은 정확히 두 문장으로 작성. 배경/핵심/시장영향/투자시사점 4단락 완성. 사실에 근거하여 뉴스 제목과 내용에 충실하게 요약할 것. 임의로 내용을 만들지 말 것.', max_new=10)
+        '글로벌 금융/경제 뉴스 전문 기자. 반드시 한국어만 사용(영어 약어 제외). 외국어 발견 시 즉시 한국어로 번역. 논문체로 작성(~이다, ~한다, ~됐다 종결어미 사용). 존댓말·합쇼체 절대 금지(~입니다, ~합니다, ~했습니다 금지). 마크다운 헤더 금지. 러시아어·일본어·중국어 절대 금지. 각 단락은 정확히 두 문장으로 작성. 배경/핵심/시장영향/투자시사점 4단락 완성. 뉴스 원문 내용에 충실하게 요약. 임의로 내용을 만들지 말 것.', max_new=10)
     dart_summaries    = summarize_dart(dart_items, dart_summaries, max_new=10)
 
 # ─────────────────────────────────────────
