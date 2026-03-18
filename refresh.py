@@ -2222,7 +2222,7 @@ if GROQ_KEY:
         # 캐시 히트율 계산 — 현재 뉴스 중 이미 캐시된 비율
         # 캐시 키: URL 있으면 URL 해시, 없으면 제목 앞 40자
         def _cache_key(n):
-            return n.get('url', n['title'])[:60]
+            return (n.get('link') or n['title'])[:80]
         keys = [_cache_key(n) for n in items[:max_new]]
         hit_count = sum(1 for k in keys if k in cache)
         hit_rate = hit_count / len(keys) if keys else 0
@@ -2233,7 +2233,7 @@ if GROQ_KEY:
             return cache
 
         for n in items[:max_new]:
-            key = n.get('url', n['title'])[:60]
+            key = (n.get('link') or n['title'])[:80]
             if key in cache:
                 continue
             try:
