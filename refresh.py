@@ -1697,6 +1697,9 @@ def extract_json_array(text):
         s = re.sub(r'//[^\n]*', '', s)          # // 주석 제거
         s = re.sub(r',\s*([}\]])', r'\1', s)   # trailing comma
         s = re.sub(r'[\x00-\x1f\x7f]', ' ', s) # 제어문자
+        s = re.sub(r'\bnil\b', 'null', s)       # nil → null (Ruby/JS 호환)
+        s = re.sub(r'\bundefined\b', 'null', s)  # undefined → null
+        s = re.sub(r'\bNaN\b', 'null', s)        # NaN → null
         return s
 
     def _clean_quotes(s):
@@ -2705,18 +2708,26 @@ TG_CACHE_FILE = '/tmp/tg_alert_cache.json'   # 이전 알림 캐시
 
 TG_QUEUE_FILE = '/tmp/tg_messages.json'
 
+_TG_QUEUE_INITIALIZED = False  # 이번 실행에서 첫 호출 여부
+
 def tg_send(msg):
-    """Telegram 메시지를 큐 파일에 저장 — yml에서 git push 후 실제 전송"""
+    """Telegram 메시지를 큐 파일에 저장 — yml에서 git push 후 실제 전송
+    첫 호출 시 이전 실행 큐를 초기화해 중복 전송 방지"""
+    global _TG_QUEUE_INITIALIZED
     if not TG_BOT or not TG_CHAT:
         print('  [TG] 토큰/ChatID 미설정')
         return
     try:
-        existing = []
-        try:
-            with open(TG_QUEUE_FILE, encoding='utf-8') as f:
-                existing = json.load(f)
-        except Exception:
-            pass
+        # 첫 호출 시 큐 초기화 (이전 실행 메시지 제거)
+        if not _TG_QUEUE_INITIALIZED:
+            existing = []
+            _TG_QUEUE_INITIALIZED = True
+        else:
+            try:
+                with open(TG_QUEUE_FILE, encoding='utf-8') as f:
+                    existing = json.load(f)
+            except Exception:
+                existing = []
         existing.append({'text': msg, 'parse_mode': 'HTML'})
         with open(TG_QUEUE_FILE, 'w', encoding='utf-8') as f:
             json.dump(existing, f, ensure_ascii=False)
