@@ -15,8 +15,10 @@ from bs4 import BeautifulSoup
 # ─────────────────────────────────────────
 # 설정
 # ─────────────────────────────────────────
-GROQ_KEY  = os.environ.get('GROQ_API_KEY', '')
-DART_KEY  = os.environ.get('DART_API_KEY', '')
+GROQ_KEY      = os.environ.get('GROQ_API_KEY', '')
+DART_KEY      = os.environ.get('DART_API_KEY', '')
+GH_PAT        = os.environ.get('GH_PAT', '')
+GITHUB_REPO   = os.environ.get('GITHUB_REPOSITORY', '')
 
 # Groq 모델 (항상 Groq 사용)
 GROQ_MODEL_HIGH = 'llama-3.3-70b-versatile'  # 고품질 분석
@@ -115,7 +117,7 @@ def fmt_time(dt):
 # KIS REST API 설정
 KIS_APP_KEY    = os.environ.get('KIS_APP_KEY', '')
 KIS_APP_SECRET = os.environ.get('KIS_APP_SECRET', '')
-KIS_TOKEN_FILE = '/tmp/kis_token.json'   # GitHub Actions 임시 파일 (Actions 캐시로 24h 재사용)
+KIS_TOKEN_FILE = '/tmp/kis_token.json'   # 로컬 캐시 (fallback용)
 KIS_BASE_URL   = 'https://openapi.koreainvestment.com:9443'
 
 PRICE_DATA = {}   # ← Yahoo 수집 전 KIS가 먼저 채움
@@ -151,23 +153,101 @@ TICK_META = {
 
 
 
-def kis_get_token():
-    """KIS access_token 관리 — 유효하면 재사용, 만료시만 재발급"""
-    if not KIS_APP_KEY or not KIS_APP_SECRET:
+def _save_secret(name, value):
+    """GitHub Secrets에 값 저장 (PyNaCl 필요)"""
+    if not GH_PAT or not GITHUB_REPO:
+        return False
+    try:
+        import base64
+        from nacl import encoding, public as nacl_public
+        # Public key 조회
+        r = SESS.get(
+            f'https://api.github.com/repos/{GITHUB_REPO}/actions/secrets/public-key',
+            headers={'Authorization': f'token {GH_PAT}', 'Accept': 'application/vnd.github+json'},
+            timeout=10
+        )
+        if not r.ok:
+            print(f'  Secrets public-key 조회 실패: {r.status_code}')
+            return False
+        pk_data = r.json()
+        # 암호화
+        pk = nacl_public.PublicKey(pk_data['key'].encode(), encoding.Base64Encoder)
+        box = nacl_public.SealedBox(pk)
+        encrypted = base64.b64encode(box.encrypt(value.encode())).decode()
+        # 저장
+        r2 = SESS.put(
+            f'https://api.github.com/repos/{GITHUB_REPO}/actions/secrets/{name}',
+            headers={'Authorization': f'token {GH_PAT}', 'Accept': 'application/vnd.github+json'},
+            json={'encrypted_value': encrypted, 'key_id': pk_data['key_id']},
+            timeout=10
+        )
+        if r2.ok:
+            print(f'  Secret {name} 저장 OK')
+            return True
+        else:
+            print(f'  Secret {name} 저장 실패: {r2.status_code}')
+            return False
+    except ImportError:
+        print('  PyNaCl 없음 — pip install PyNaCl')
+        return False
+    except Exception as e:
+        print(f'  Secret 저장 오류: {e}')
+        return False
+
+
+def _load_secret_token():
+    """GitHub Secrets에서 KIS 토큰 로드 후 유효성 검사"""
+    token   = os.environ.get('KIS_ACCESS_TOKEN', '')
+    expired = os.environ.get('KIS_TOKEN_EXPIRED', '')
+    if not token or not expired:
         return None
-    # 캐시 파일 확인
+    try:
+        expire_dt = datetime.fromisoformat(expired)
+        expire_dt = expire_dt.replace(tzinfo=KST) if expire_dt.tzinfo is None else expire_dt
+        if NOW < expire_dt - timedelta(hours=1):
+            print(f'  KIS 토큰 재사용 [Secrets] (만료: {expire_dt.strftime("%m/%d %H:%M")})')
+            # /tmp 파일에도 캐시 (하위 함수 호환)
+            with open(KIS_TOKEN_FILE, 'w') as f:
+                json.dump({'access_token': token, 'access_token_token_expired': expired}, f)
+            return token
+    except Exception as e:
+        print(f'  Secrets 토큰 파싱 오류: {e}')
+    return None
+
+
+def _load_file_token():
+    """/tmp 캐시 파일에서 KIS 토큰 로드"""
     try:
         with open(KIS_TOKEN_FILE, 'r') as f:
             cached = json.load(f)
         expire_dt = datetime.fromisoformat(cached.get('access_token_token_expired', '2000-01-01'))
         expire_dt = expire_dt.replace(tzinfo=KST) if expire_dt.tzinfo is None else expire_dt
-        # 만료 1시간 전까지 재사용
         if NOW < expire_dt - timedelta(hours=1):
-            print(f'  KIS 토큰 재사용 (만료: {expire_dt.strftime("%m/%d %H:%M")})')
+            print(f'  KIS 토큰 재사용 [파일캐시] (만료: {expire_dt.strftime("%m/%d %H:%M")})')
             return cached['access_token']
     except Exception:
         pass
-    # 신규 발급
+    return None
+
+
+def kis_get_token():
+    """KIS access_token 관리
+    우선순위: 1) GitHub Secrets → 2) /tmp 파일캐시 → 3) 신규 발급 + Secrets 저장
+    """
+    if not KIS_APP_KEY or not KIS_APP_SECRET:
+        return None
+
+    # 1순위: GitHub Secrets (컨테이너 재시작과 무관하게 영구 재사용)
+    token = _load_secret_token()
+    if token:
+        return token
+
+    # 2순위: /tmp 파일캐시 (같은 컨테이너 내 재실행)
+    token = _load_file_token()
+    if token:
+        return token
+
+    # 3순위: 신규 발급
     try:
         resp = SESS.post(
             f'{KIS_BASE_URL}/oauth2/tokenP',
@@ -180,13 +260,17 @@ def kis_get_token():
             return None
         data = resp.json()
         token = data.get('access_token')
+        expired = data.get('access_token_token_expired', '')
         if not token:
             print(f'  KIS 토큰 없음: {data}')
             return None
-        # 캐시 저장 (토큰값은 파일에만, HTML에 절대 노출 안 함)
+        # /tmp 파일 저장
         with open(KIS_TOKEN_FILE, 'w') as f:
             json.dump(data, f)
-        print(f'  KIS 토큰 신규 발급 OK')
+        print(f'  KIS 토큰 신규 발급 OK — Secrets에 저장 중...')
+        # GitHub Secrets에 저장 (다음 실행부터 재사용)
+        _save_secret('KIS_ACCESS_TOKEN', token)
+        _save_secret('KIS_TOKEN_EXPIRED', expired)
         return token
     except Exception as e:
         print(f'  KIS 토큰 발급 오류: {e}')
