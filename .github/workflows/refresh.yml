@@ -86,6 +86,7 @@ jobs:
           git add hloomberg.html refresh.py summaries_cache.json 2>/dev/null || true
           git add .github/workflows/refresh.yml 2>/dev/null || true
           git diff --cached --quiet || git commit -m "refresh $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+          git pull --rebase origin main || true
           git push
 
       - name: Send Telegram (after deploy)
