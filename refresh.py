@@ -1589,10 +1589,9 @@ def call_groq(model, system, user, max_tokens=3000):
         timeout=120,
     )
     if resp.status_code == 429:
-        # 재시도 금지 — RPM 악순환 방지, 해당 호출 건너뜀
         retry_after = resp.headers.get('retry-after', '?')
         print(f'    Groq 429 rate_limit — 건너뜀 (retry-after: {retry_after}s)')
-        raise Exception(f'Groq 429 rate_limit_exceeded')
+        return ''  # 빈 응답 반환 — 스크립트 계속 진행
     if not resp.ok:
         raise Exception(f'Groq HTTP {resp.status_code}: {resp.text[:200]}')
     raw = resp.json()['choices'][0]['message']['content'].strip()
@@ -1959,8 +1958,7 @@ if GROQ_KEY and AI_PARTIAL:
             print(f'  패턴A 완료: TOP{len(swing_top10)} / 신호 {len(swing_quick)}개')
 
         except Exception as e:
-            print(f'  패턴A 스윙 FAIL: {e}')
-            import traceback; traceback.print_exc()
+            print(f'  패턴A 스윙 FAIL: {e} — 건너뜀')
             swing_top10 = []
 
 else:
