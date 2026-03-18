@@ -8,6 +8,7 @@ GitHub Actions에서 5분마다 실행
 import os, json, re, time, html as htmlmod
 from datetime import datetime, timezone, timedelta
 from xml.etree import ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from bs4 import BeautifulSoup
@@ -311,6 +312,21 @@ def fetch_kis_price(code, token):
         p0 = float(d.get('stck_sdpr', 0) or 0)
         if p > 0:
             return {'p': p, 'c': c, 'p0': p0, 'src': 'KIS'}
+        # 장 마감 시 Yahoo Finance fallback
+        sym = code + '.KS'
+        try:
+            r2 = requests.get(f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}',
+                              headers={'User-Agent':'Mozilla/5.0'}, timeout=5)
+            if r2.ok:
+                meta = r2.json().get('chart',{}).get('result',[{}])[0].get('meta',{})
+                p = meta.get('regularMarketPrice', 0)
+                pc = meta.get('chartPreviousClose', p)
+                c = round((p - pc) / pc * 100, 2) if pc else 0
+                if p > 0:
+                    print(f'    KIS 종목 {code} → Yahoo fallback: {p:,}원 ({c:+.2f}%)')
+                    return {'p': p, 'c': c, 'src': 'Yahoo'}
+        except Exception:
+            pass
         print(f'    KIS 종목 {code} 가격 0 (장 마감/데이터 없음)')
     except Exception as e:
         print(f'    KIS 종목 {code} 예외: {e}')
@@ -694,20 +710,23 @@ else:
     foreign_buy = []; institution_buy = []; fluctuation_rank = []; volume_rank_data = []
 
 
-print(f'\n[시세] {len(TICKERS)}개 수집...')
-# KIS가 이미 수집한 지수(KOSPI/KOSDAQ)는 Yahoo로 덮어쓰지 않음
-for name, sym in TICKERS.items():
-    if name in PRICE_DATA:   # KIS 데이터 있으면 스킵
-        print(f"  SKIP {name:<10} (KIS 수집 완료)")
-        continue
-    res = get_price(name, sym)
-    if res:
-        PRICE_DATA[name] = res
-        sg = '+' if res['c'] >= 0 else ''
-        print(f"  OK  {name:<10} {res['p']:>12.2f}  ({sg}{res['c']:.2f}%)  [{res['src']}]")
-    else:
-        print(f"  FAIL {name}")
-    time.sleep(0.1)
+print(f'\n[시세] {len(TICKERS)}개 병렬 수집...')
+def _fetch_ticker(item):
+    name, sym = item
+    if name in PRICE_DATA:
+        return name, None
+    return name, get_price(name, sym)
+
+_ticker_items = [(n,s) for n,s in TICKERS.items() if n not in PRICE_DATA]
+with ThreadPoolExecutor(max_workers=8) as ex:
+    for name, res in ex.map(_fetch_ticker, _ticker_items):
+        if res:
+            PRICE_DATA[name] = res
+            sg = '+' if res['c'] >= 0 else ''
+            print(f"  OK  {name:<10} {res['p']:>12.2f}  ({sg}{res['c']:.2f}%)  [{res['src']}]")
+        else:
+            if name not in PRICE_DATA:
+                print(f"  FAIL {name}")
 print(f'  → {len(PRICE_DATA)}/{len(TICKERS)} 수신')
 
 def fmt_price(v, key):
@@ -812,15 +831,17 @@ def fetch_chart_data(sym, days=90):
         except: pass
     return []
 
-print('\n[원자재 차트] 90일 데이터 수집...')
-for key, sym in CMDTY_CHART_SYMS.items():
-    pts = fetch_chart_data(sym, 90)
-    if pts:
-        cmdty_chart[key] = pts
-        print(f'  OK  {key}: {len(pts)}일')
-    else:
-        print(f'  FAIL {key}')
-    time.sleep(0.1)
+print('\n[원자재 차트] 90일 병렬 수집...')
+def _fetch_cmdty(item):
+    key, sym = item
+    return key, fetch_chart_data(sym, 90)
+with ThreadPoolExecutor(max_workers=6) as ex:
+    for key, pts in ex.map(_fetch_cmdty, CMDTY_CHART_SYMS.items()):
+        if pts:
+            cmdty_chart[key] = pts
+            print(f'  OK  {key}: {len(pts)}일')
+        else:
+            print(f'  FAIL {key}')
 
 # ─────────────────────────────────────────
 # 종목 OHLCV + 기술지표
@@ -885,24 +906,23 @@ def fetch_ohlcv(sym, days=90):
         except: pass
     return None
 
-print('\n[종목차트] OHLCV + 기술지표 수집...')
-for name, ticker in STOCK_TICKERS.items():
-    data = None
-    # 4순위: KIS 우선, fallback Yahoo
+print('\n[종목차트] OHLCV + 기술지표 병렬 수집...')
+def _fetch_ohlcv_item(item):
+    name, ticker = item
     code = ticker.split('.')[0]
     if kis_token:
         data = fetch_kis_ohlcv(code, kis_token, 90)
         if data:
-            print(f'  OK  {name}: {len(data)}일  [KIS]')
-    if not data:
-        data = fetch_ohlcv(ticker, 90)
+            return name, data, 'KIS'
+    data = fetch_ohlcv(ticker, 90)
+    return name, data, 'Yahoo'
+with ThreadPoolExecutor(max_workers=5) as ex:
+    for name, data, src in ex.map(_fetch_ohlcv_item, STOCK_TICKERS.items()):
         if data:
-            print(f'  OK  {name}: {len(data)}일  [Yahoo]')
+            stock_charts[name] = data
+            print(f'  OK  {name}: {len(data)}일  [{src}]')
         else:
             print(f'  FAIL {name}')
-    if data:
-        stock_charts[name] = data
-    time.sleep(0.15)
 
 # ─────────────────────────────────────────
 # FRED API — 미국 경제지표
@@ -915,7 +935,7 @@ FRED_SERIES = {
     'CPI_YOY':   {'id':'CPIAUCSL',        'name':'미국 CPI(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
     'UNRATE':    {'id':'UNRATE',          'name':'미국 실업률',     'unit':'%',  'yoy':False},
     'GDP_QOQ':   {'id':'A191RL1Q225SBEA', 'name':'미국 GDP(QoQ)',  'unit':'%',  'yoy':False},  # 이미 성장률
-    'US_PMI':    {'id':'ISMMAN',          'name':'미국 PMI',       'unit':'',   'yoy':False},
+    'US_PMI':    {'id':'NAPM',            'name':'미국 PMI(ISM)', 'unit':'',   'yoy':False},
     'US10Y':     {'id':'DGS10',           'name':'미국 10Y 국채',  'unit':'%',  'yoy':False},
     'DXY':       {'id':'DTWEXBGS',        'name':'달러인덱스',      'unit':'',   'yoy':False},
     'PCE':       {'id':'PCEPI',           'name':'미국 PCE(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
@@ -945,22 +965,25 @@ def fetch_fred(series_id, limit=2, yoy=False):
         return vals[:2]
     except: return None
 
-print('\n[FRED] 미국 경제지표 수집...')
-for key, meta in FRED_SERIES.items():
+print('\n[FRED] 미국 경제지표 병렬 수집...')
+def _fetch_fred_item(item):
+    key, meta = item
     vals = fetch_fred(meta['id'], yoy=meta.get('yoy', False))
-    if vals:
-        latest = vals[0]
-        prev   = vals[1] if len(vals) > 1 else None
-        chg    = round(latest[1] - prev[1], 2) if prev else 0
-        fred_data[key] = {
-            'name': meta['name'], 'unit': meta['unit'],
-            'val':  round(latest[1], 2), 'date': latest[0],
-            'chg':  chg, 'prev': round(prev[1], 2) if prev else None
-        }
-        print(f'  OK  {key}: {latest[1]}{meta["unit"]} ({latest[0]})')
-    else:
-        print(f'  SKIP {key} (키 없음)')
-    time.sleep(0.1)
+    return key, meta, vals
+with ThreadPoolExecutor(max_workers=8) as ex:
+    for key, meta, vals in ex.map(_fetch_fred_item, FRED_SERIES.items()):
+        if vals:
+            latest = vals[0]
+            prev   = vals[1] if len(vals) > 1 else None
+            chg    = round(latest[1] - prev[1], 2) if prev else 0
+            fred_data[key] = {
+                'name': meta['name'], 'unit': meta['unit'],
+                'val':  round(latest[1], 2), 'date': latest[0],
+                'chg':  chg, 'prev': round(prev[1], 2) if prev else None
+            }
+            print(f'  OK  {key}: {latest[1]}{meta["unit"]} ({latest[0]})')
+        else:
+            print(f'  SKIP {key} (키 없음)')
 
 # ─────────────────────────────────────────
 # 한국은행 OpenAPI — 한국 경제지표
@@ -1064,15 +1087,17 @@ def fetch_sector_price(sym):
         except: pass
     return None
 
-print('\n[섹터] 히트맵 데이터 수집...')
-for sector, meta in SECTOR_ETFS.items():
-    d = fetch_sector_price(meta['sym'])
-    if d:
-        sector_data[sector] = {**d, 'etf': meta['etf']}
-        print(f'  OK  {sector}: {d["price"]} ({d["chg"]:+.2f}%)')
-    else:
-        print(f'  FAIL {sector}')
-    time.sleep(0.1)
+print('\n[섹터] 히트맵 병렬 수집...')
+def _fetch_sector_item(item):
+    sector, meta = item
+    return sector, meta, fetch_sector_price(meta['sym'])
+with ThreadPoolExecutor(max_workers=10) as ex:
+    for sector, meta, d in ex.map(_fetch_sector_item, SECTOR_ETFS.items()):
+        if d:
+            sector_data[sector] = {**d, 'etf': meta['etf']}
+            print(f'  OK  {sector}: {d["price"]} ({d["chg"]:+.2f}%)')
+        else:
+            print(f'  FAIL {sector}')
 
 # ─────────────────────────────────────────
 # 2. 뉴스 수집
@@ -1271,21 +1296,25 @@ print(f'\n[뉴스] 수집 시작...')
 kr_news = []
 seen_kr = set()
 # RSS
-for url, src, tc in KR_RSS:
-    items = parse_rss(url, src, '한국', tc, 4)
-    for it in items:
-        if not is_relevant(it['title']): continue
-        k = it['title'][:20]
-        if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
-    time.sleep(0.05)
+def _fetch_kr_rss(item):
+    url, src, tc = item
+    return parse_rss(url, src, '한국', tc, 4)
+with ThreadPoolExecutor(max_workers=10) as ex:
+    for items in ex.map(_fetch_kr_rss, KR_RSS):
+        for it in items:
+            if not is_relevant(it['title']): continue
+            k = it['title'][:20]
+            if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
 # Google News
-for q, tc in KR_GNEWS:
-    items = fetch_gnews(q, '한국', tc, 'ko', 'KR', 5)
-    for it in items:
-        if not is_relevant(it['title']): continue
-        k = it['title'][:20]
-        if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
-    time.sleep(0.05)
+def _fetch_kr_gnews(item):
+    q, tc = item
+    return fetch_gnews(q, '한국', tc, 'ko', 'KR', 5)
+with ThreadPoolExecutor(max_workers=8) as ex:
+    for items in ex.map(_fetch_kr_gnews, KR_GNEWS):
+        for it in items:
+            if not is_relevant(it['title']): continue
+            k = it['title'][:20]
+            if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
 # 네이버
 for it in fetch_naver_news():
     if not is_relevant(it['title']): continue
@@ -1352,20 +1381,24 @@ def score_gl(item):
                 break
     return s
 
-for url, src, tag, tc in GL_RSS:
-    items = parse_rss(url, src, tag, tc, 3)
-    for it in items:
-        if not is_relevant(it['title']): continue
-        k = it['title'][:20]
-        if k not in seen_gl: seen_gl.add(k); gl_news.append(it)
-    time.sleep(0.05)
-for q, tag, tc in GL_GNEWS:
-    items = fetch_gnews(q, tag, tc, 'en', 'US', 5)
-    for it in items:
-        if not is_relevant(it['title']): continue
-        k = it['title'][:20]
-        if k not in seen_gl: seen_gl.add(k); gl_news.append(it)
-    time.sleep(0.05)
+def _fetch_gl_rss(item):
+    url, src, tag, tc = item
+    return parse_rss(url, src, tag, tc, 3)
+with ThreadPoolExecutor(max_workers=10) as ex:
+    for items in ex.map(_fetch_gl_rss, GL_RSS):
+        for it in items:
+            if not is_relevant(it['title']): continue
+            k = it['title'][:20]
+            if k not in seen_gl: seen_gl.add(k); gl_news.append(it)
+def _fetch_gl_gnews(item):
+    q, tag, tc = item
+    return fetch_gnews(q, tag, tc, 'en', 'US', 5)
+with ThreadPoolExecutor(max_workers=8) as ex:
+    for items in ex.map(_fetch_gl_gnews, GL_GNEWS):
+        for it in items:
+            if not is_relevant(it['title']): continue
+            k = it['title'][:20]
+            if k not in seen_gl: seen_gl.add(k); gl_news.append(it)
 
 gl_news.sort(key=score_gl, reverse=True)
 gl_news = gl_news[:10]
@@ -1692,7 +1725,8 @@ if GROQ_KEY and AI_PARTIAL:
     # 시세 요약
     price_str = ' | '.join([f"{k}:{fmt_price(v['p'],k)}({'+' if v['c']>=0 else ''}{v['c']:.2f}%)" for k,v in PRICE_DATA.items()])
     # 뉴스 요약 (상위 30개)
-    kr_str = '\n'.join([f"{i+1}. [{n['src']}] {n['title']}" for i,n in enumerate(kr_news[:20])])
+    kr_str = '\n'.join([f"{i+1}. [{n['src']}] {n['title']}" for i,n in enumerate(kr_news[:20])]) or '뉴스 없음'
+    kr_str_step1 = '\n'.join([f"{i+1}. [{n['src']}] {n['title']}" for i,n in enumerate(kr_news[:15])]) or '뉴스 없음'
     gl_str = '\n'.join([f"{i+1}. [{n['tag']}/{n['src']}] {n['title']}" for i,n in enumerate(gl_news[:15])])
     # 공시 요약
     dart_str = '\n'.join([f"{d['corp']}: {d['title']}" for d in dart_items[:10]]) or '없음'
@@ -1865,16 +1899,20 @@ if GROQ_KEY and AI_PARTIAL:
             step1_resp = call_claude(
                 'claude-haiku-4-5-20251001',
                 '한국주식 시그널 추출 전문가. 한국어. JSON만 출력. 존댓말 금지.',
-                f'[국내뉴스]\n{kr_str}\n\n'
-                f'[글로벌 이슈]\n{issue_summary}\n\n'
-                f'[현재시세]\n{price_str}\n\n'
-                f'뉴스와 이슈에서 종목별 매수/매도 시그널 추출. 명시적 언급 종목 우선, 섹터 수혜 종목 포함.\n\n'
-                f'출력형식(JSON 배열):\n'
-                f'[{{"name":"종목명","code":"123456","signal":"매수/매도/중립",'
-                f'"reason":"시그널 근거 1문장","sector":"섹터명","urgency":"고/중/저"}},...]',
+                '\n'.join([
+                    f'[국내뉴스]\n' + '\n'.join([f"{i+1}. [{n['src']}] {n['title']}" for i,n in enumerate(kr_news[:15])]) +
+                    f'\n\n[글로벌 이슈]\n{issue_summary}\n\n'
+                    f'[현재시세]\n{price_str}\n\n'
+                    '뉴스와 이슈에서 종목별 매수/매도 시그널 추출. 명시적 언급 종목 우선, 섹터 수혜 포함.\n\n'
+                    '출력형식(JSON 배열 — 마크다운 없이 JSON만):'
+                    '[{"name":"종목명","code":"123456","signal":"매수/매도/중립",'
+                    '"reason":"시그널 근거 1문장","sector":"섹터명","urgency":"고/중/저"},...]'
+                ]),
                 2000
             )
             step1_signals = extract_json_array(step1_resp) or []
+            if not step1_signals and step1_resp:
+                print(f'    Step1 파싱 실패 — 응답 앞 200자: {step1_resp[:200]}')
             print(f'    Step1 완료: {len(step1_signals)}개 시그널')
 
             # ── Step 2: 시그널 + KIS 수급 결합, 후보 20개 선별
