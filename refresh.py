@@ -2751,11 +2751,55 @@ if STOCK_MODE and GROQ_KEY:
                 2000
             )
             # 마크다운 → HTML 변환
+            # 마크다운 → HTML 변환
             t = t.replace('**', '').replace('*', '')
-            t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
-            t = re.sub(r'^(\d+\. .+)', r'<strong style="color:var(--blue)">\1</strong>', t, flags=re.MULTILINE)
-            t = re.sub(r'^   - ', '  └ ', t, flags=re.MULTILINE)
-            stock_analysis[s['name']] = {'html': HE(t), 'ts': TS_SHORT}
+            # ## 헤더 → <h3> 섹션 제목
+            def _md2html(raw):
+                lines = raw.split('\n')
+                html_parts = []
+                buf = []
+                def flush_buf():
+                    if buf:
+                        para = ' '.join(l for l in buf if l)
+                        if para:
+                            html_parts.append(f'<p style="margin:0 0 8px 0;line-height:1.7">{HE(para)}</p>')
+                        buf.clear()
+                for line in lines:
+                    # --- 구분선 제거
+                    if re.match(r'^-{3,}$', line.strip()): flush_buf(); continue
+                    # ## 헤더
+                    m4 = re.match(r'^#{1,4}\s+(.+)', line)
+                    if m4:
+                        flush_buf()
+                        html_parts.append(f'<h4 style="margin:14px 0 6px 0;font-size:13px;color:var(--blue);border-bottom:1px solid var(--bd);padding-bottom:4px">{HE(m4.group(1))}</h4>')
+                        continue
+                    # 테이블 행
+                    if line.strip().startswith('|') and '|' in line[1:]:
+                        flush_buf()
+                        if re.match(r'^[|\s:\-]+$', line): continue  # 구분선
+                        cells = [c.strip() for c in line.strip().strip('|').split('|')]
+                        html_parts.append('<div style="display:flex;gap:8px;margin-bottom:4px;font-size:12px">' + ''.join(f'<span style="flex:1;color:var(--txt2)">{HE(c)}</span>' for c in cells) + '</div>')
+                        continue
+                    # 빈 줄 → 단락 분리
+                    if not line.strip():
+                        flush_buf(); continue
+                    # 리스트 항목
+                    lm = re.match(r'^(\s*)[•\-\*]\s+(.*)', line)
+                    if lm:
+                        flush_buf()
+                        indent = len(lm.group(1))
+                        html_parts.append(f'<div style="margin:2px 0 2px {indent*4+8}px;font-size:13px;color:var(--txt2)">• {HE(lm.group(2))}</div>')
+                        continue
+                    # 번호 리스트
+                    nm = re.match(r'^(\d+)\.\s+(.*)', line)
+                    if nm:
+                        flush_buf()
+                        html_parts.append(f'<div style="margin:4px 0 4px 8px;font-size:13px"><strong style="color:var(--blue)">{nm.group(1)}.</strong> {HE(nm.group(2))}</div>')
+                        continue
+                    buf.append(line.strip())
+                flush_buf()
+                return ''.join(html_parts)
+            stock_analysis[s['name']] = {'html': _md2html(t), 'ts': TS_SHORT}
             print(f"  OK  {s['name']}")
             time.sleep(0.5)
         except Exception as e:
