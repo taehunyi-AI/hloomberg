@@ -43,7 +43,6 @@ jobs:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
-            /tmp/summaries_cache.json
             /tmp/tg_messages.json
           key: kis-token-${{ github.run_id }}
           restore-keys: |
@@ -77,7 +76,6 @@ jobs:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
-            /tmp/summaries_cache.json
             /tmp/tg_messages.json
           key: kis-token-${{ github.run_id }}
 
@@ -85,7 +83,7 @@ jobs:
         run: |
           git config user.name  "hloomberg-bot"
           git config user.email "bot@hloomberg"
-          git add hloomberg.html refresh.py
+          git add hloomberg.html refresh.py summaries_cache.json 2>/dev/null || true
           git add .github/workflows/refresh.yml 2>/dev/null || true
           git diff --cached --quiet || git commit -m "refresh $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
           git push
