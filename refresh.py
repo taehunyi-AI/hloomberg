@@ -2244,11 +2244,10 @@ if GROQ_KEY:
         hit_count = sum(1 for k in keys if k in cache)
         hit_rate = hit_count / len(keys) if keys else 0
 
-        # 히트율 70% 이상이면 신규 요약 스킵 (캐시 충분)
+        # 히트율 출력 — 항상 미캐시 항목은 요약 생성
         if hit_rate >= 0.7:
-            print(f'  {label}: 캐시 히트 {hit_count}/{len(keys)} ({hit_rate:.0%}) — 요약 스킵')
-            return cache
-
+            print(f'  {label}: 캐시 히트 {hit_count}/{len(keys)} ({hit_rate:.0%}) — 미캐시만 추가 요약')
+        
         for n in items[:max_new]:
             key = (n.get('link') or n['title'])[:80]
             if key in cache:
@@ -2277,16 +2276,15 @@ if GROQ_KEY:
         cache = dict(existing_cache)
         new_count = 0
 
-        # 캐시 히트율 70% 이상이면 스킵
-        keys = [d.get('url', d['title'])[:60] for d in items[:max_new]]
+        # 캐시 히트율 계산 (키: link||title[:80])
+        keys = [(d.get('link') or d['title'])[:80] for d in items[:max_new]]
         hit_count = sum(1 for k in keys if k in cache)
         hit_rate = hit_count / len(keys) if keys else 0
         if hit_rate >= 0.7:
-            print(f'  공시요약: 캐시 히트 {hit_count}/{len(keys)} ({hit_rate:.0%}) — 요약 스킵')
-            return cache
+            print(f'  공시요약: 캐시 히트 {hit_count}/{len(keys)} ({hit_rate:.0%}) — 미캐시만 추가 요약')
 
         for d in items[:max_new]:
-            key = d.get('url', d['title'])[:60]
+            key = (d.get('link') or d['title'])[:80]
             if key in cache:
                 continue
             try:
@@ -2455,7 +2453,8 @@ try:
 except Exception as e:
     print(f'  캐시 저장 실패: {e}')
 
-    html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
+# SUMMARIES HTML 패치 — 항상 실행 (try 블록 외부)
+html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
 html = patch(html, '// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', summaries_to_js(gl_news_summaries, 'GL_NEWS_SUMMARIES'))
 html = patch(html, '// ##DART_SUMMARIES_S##',    '// ##DART_SUMMARIES_E##',    summaries_to_js(dart_summaries,    'DART_SUMMARIES'))
 print(f'  SUMMARIES: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)}')
