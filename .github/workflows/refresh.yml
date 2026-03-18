@@ -44,6 +44,7 @@ jobs:
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
             /tmp/summaries_cache.json
+            /tmp/tg_messages.json
           key: kis-token-${{ github.run_id }}
           restore-keys: |
             kis-token-
@@ -77,6 +78,7 @@ jobs:
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
             /tmp/summaries_cache.json
+            /tmp/tg_messages.json
           key: kis-token-${{ github.run_id }}
 
       - name: Commit & Push
@@ -87,3 +89,43 @@ jobs:
           git add .github/workflows/refresh.yml 2>/dev/null || true
           git diff --cached --quiet || git commit -m "refresh $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
           git push
+
+      - name: Send Telegram (after deploy)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "GitHub Pages 배포 대기 (60초)..."
+          sleep 60
+          python3 - <<'PYEOF'
+import json, requests, os, time
+f = '/tmp/tg_messages.json'
+bot   = os.environ.get('TELEGRAM_BOT_TOKEN','')
+chat  = os.environ.get('TELEGRAM_CHAT_ID','')
+if not bot or not chat: exit(0)
+try:
+    msgs = json.load(open(f, encoding='utf-8'))
+except Exception: exit(0)
+for i, m in enumerate(msgs):
+    for attempt in range(2):
+        try:
+            r = requests.post(
+                f'https://api.telegram.org/bot{bot}/sendMessage',
+                json={'chat_id': int(chat), 'text': m['text'], 'parse_mode': 'HTML'},
+                timeout=15
+            )
+            j = r.json()
+            if j.get('ok'):
+                print(f'[TG] 전송 OK (message_id={j["result"]["message_id"]})')
+            else:
+                print(f'[TG] 전송 실패: {j.get("error_code")} {j.get("description")}')
+            break
+        except Exception as e:
+            if attempt == 0:
+                print(f'[TG] 재시도... ({e})')
+                time.sleep(3)
+            else:
+                print(f'[TG] 예외: {e}')
+    if i < len(msgs)-1: time.sleep(1)
+print(f'[TG] 총 {len(msgs)}건 전송 완료')
+PYEOF
