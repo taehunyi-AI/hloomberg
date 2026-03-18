@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 “””
-HLOOMBERG TERMINAL — refresh.py
+HLOOMBERG TERMINAL — refresh.py  # v2026.03.18
 GitHub Actions에서 5분마다 실행
 수집: 시세(Yahoo/Naver/Stooq) + 뉴스(RSS/네이버/다음) + 공시(DART) + 리서치(네이버금융) + AI분석(Claude)
 패치: hloomberg.html 마커 치환
