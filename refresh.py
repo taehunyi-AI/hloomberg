@@ -1558,23 +1558,38 @@ def parse_issues_json(text):
     return []
 
 
-# Groq 호출 설정 (무료 티어: 30 RPM)
-# RPM 한도: 30회/분 = 2초당 1회 → 인터벌 10초로 안전 마진 확보
-# 429 시 재시도 금지 — 재시도가 RPM을 더 소모하는 악순환 방지
-GROQ_CALL_INTERVAL = 10  # 초: 연속 호출 간 최소 대기 (30RPM 기준 안전값)
-GROQ_RETRY_WAIT    = 0   # 미사용
-GROQ_MAX_RETRY     = 0   # 429 시 재시도 안 함 — 즉시 건너뜀
-_groq_last_call    = 0.0
+# Groq 토큰 버킷 (무료 티어 TPM 90% = 5,400 목표)
+# API latency 동안 버킷이 자동 충전 → 토큰량 비례 대기, 경량 호출 가속
+class _TokenBucket:
+    capacity = 5400.0   # TPM 90% 목표
+    tokens   = 5400.0   # 현재 잔여 (시작 시 가득)
+    refill   = 90.0     # tok/초 (= 5,400 / 60)
+    last_t   = 0.0
+
+    def consume(self, tokens):
+        import time as _t
+        now = _t.time()
+        if self.last_t > 0:
+            recharged = (now - self.last_t) * self.refill
+            self.tokens = min(self.capacity, self.tokens + recharged)
+        self.last_t = now
+        if self.tokens < tokens:
+            wait = (tokens - self.tokens) / self.refill
+            print(f'    [버킷] {tokens:,}tok 필요, 잔여 {self.tokens:.0f}tok → {wait:.1f}초 대기')
+            _t.sleep(wait)
+            self.tokens = 0.0
+        else:
+            self.tokens -= tokens
+
+_bucket = _TokenBucket()
 
 def call_groq(model, system, user, max_tokens=3000):
-    """Groq API 전용 호출"""
-    global _groq_last_call
+    """Groq API 전용 호출 — TokenBucket으로 TPM 90% 유지"""
     if not GROQ_KEY:
         raise Exception('No GROQ_API_KEY')
-    elapsed = time.time() - _groq_last_call
-    if elapsed < GROQ_CALL_INTERVAL:
-        time.sleep(GROQ_CALL_INTERVAL - elapsed)
-    _groq_last_call = time.time()
+    # 토큰 추정: 입력(chars/4) + 출력(max_tokens) → 버킷 소비
+    est_tokens = len(system) // 4 + len(user) // 4 + max_tokens
+    _bucket.consume(est_tokens)
     resp = requests.post(
         'https://api.groq.com/openai/v1/chat/completions',
         headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
@@ -1589,12 +1604,20 @@ def call_groq(model, system, user, max_tokens=3000):
         timeout=120,
     )
     if resp.status_code == 429:
-        retry_after = resp.headers.get('retry-after', '?')
-        print(f'    Groq 429 rate_limit — 건너뜀 (retry-after: {retry_after}s)')
-        return ''  # 빈 응답 반환 — 스크립트 계속 진행
+        retry_after = int(resp.headers.get('retry-after', 30))
+        print(f'    Groq 429 — {retry_after}초 대기 후 버킷 리셋')
+        time.sleep(retry_after)
+        _bucket.tokens = _bucket.capacity  # 버킷 리셋
+        return ''  # 이번 호출은 건너뜀
     if not resp.ok:
         raise Exception(f'Groq HTTP {resp.status_code}: {resp.text[:200]}')
     raw = resp.json()['choices'][0]['message']['content'].strip()
+    # 실제 사용 토큰으로 버킷 보정 (과추정 시 잔여 반환)
+    usage = resp.json().get('usage', {})
+    actual = usage.get('total_tokens', 0)
+    if actual > 0 and actual < est_tokens:
+        refund = est_tokens - actual
+        _bucket.tokens = min(_bucket.capacity, _bucket.tokens + refund)
     return re.sub(r'^```(?:json)?', '', raw).rstrip('`').strip()
 
 # alias — 기존 call_claude/call_ai 호출 호환
