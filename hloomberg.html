@@ -335,11 +335,34 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
     <div class="ai-section">
       <h3>🤖 AI분석</h3>
       <div class="ai-body">
-<strong style="color:#fff">종합분석</strong> — 5분마다 갱신 (Claude Sonnet 4)
-• 🔍 뉴스 편향/오류 분석
-• 📈 시장 전망
-• 🎯 추천 종목 (진입가/목표가/손절가 포함)
-• ⚠️ 핵심 리스크 경고</div>
+<strong style="color:#fff">AI 엔진 — Groq (매시간 :07분 갱신)</strong>
+• llama-3.3-70b-versatile: 종합분석 · 이슈 · 원자재 · 스윙TOP10
+• llama-3.1-8b-instant: 뉴스요약 · 공시요약 · 시그널추출 · 전략생성
+
+<strong style="color:#fff">종합분석 4섹션</strong>
+• 🔍 뉴스 편향/오류 분석: 시장이 오독하는 부분 지적
+• 📈 시장 전망: KOSPI/KOSDAQ 방향성, 지지/저항, 환율/유가
+• 🎯 추천 종목: 진입가 · 목표가 · 손절가 포함
+• ⚠️ 핵심 리스크: 발생확률(%) + 시장 충격 크기 + 대응전략
+
+<strong style="color:#fff">스윙TOP10 — 패턴A 4단계 체인드 리서치</strong>
+단일 AI 호출 대신 4단계 순차 파이프라인. 각 단계 출력이 다음 단계 입력으로 전달되어 품질이 누적됩니다.
+
+<strong style="color:#fff">Step 1 — 시그널 추출 (llama-3.1-8b)</strong>
+뉴스 21피드 + 이슈 20개를 스캔해 종목별 매수/매도/중립 시그널과 urgency(고/중/저)를 JSON으로 추출합니다. 8b 모델 사용 이유: 분류 작업에 70b 불필요, TPM 절약.
+
+<strong style="color:#fff">Step 2 — 수급 결합 (llama-3.3-70b)</strong>
+Step1 시그널에 KIS 실시간 외국인/기관 순매수 데이터를 결합해 점수화 후 후보 20개를 선별합니다. 뉴스 긍정이어도 외국인 대규모 매도 중이면 점수가 내려갑니다.
+
+<strong style="color:#fff">Step 3 — 리스크 필터 (llama-3.3-70b)</strong>
+후보 20개에 3중 필터 적용 → TOP10 확정:<br>
+① VIX &gt; 20이면 고위험(risk 4~5) 종목 제거<br>
+② 동일 섹터 최대 3개 제한<br>
+③ 수급 부정 + 시그널 약한 종목 우선 제거<br>
+당일 AI 종합분석 리스크 섹션이 컨텍스트로 주입됩니다.
+
+<strong style="color:#fff">Step 4 — 전략 생성 (llama-3.1-8b)</strong>
+확정 TOP10에 KIS 실시간 현재가를 붙여 목표가·손절가를 생성합니다. "현재가 기준 실현 가능한"이라는 조건으로 비현실적 가격을 방지합니다.</div>
     </div>
 
     <div class="ai-section">
@@ -362,9 +385,11 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);height:100vh;
     <div class="ai-section">
       <h3>📊 스윙종목</h3>
       <div class="ai-body">
-<strong style="color:#fff">AI 실시간 TOP10 — 매 5분 자동 교체</strong>
-• Claude Sonnet이 현재 시세 + 뉴스 + 이슈 분석 후 KOSPI/KOSDAQ 최적 10종목 선정
-• 이란전쟁 심화 시 방산/에너지 비중 ↑, AI 모멘텀 시 반도체 비중 ↑
+<strong style="color:#fff">AI TOP10 — 매시간 :07분 패턴A 체인드 리서치</strong>
+• Step1: 뉴스·이슈에서 종목별 매수/매도 시그널 자동 추출
+• Step2: KIS 외국인/기관 수급 데이터 결합 → 후보 20개 선별
+• Step3: VIX·섹터분산·수급 리스크 필터 → TOP10 확정
+• Step4: 현재가 기준 목표가·손절가 자동 생성
 • 종목코드 기반 KIS 실시간 시세 자동 연동
 
 <strong style="color:#fff">종목 카드 표시 항목</strong>
@@ -1301,26 +1326,22 @@ function buildArch(){
       +'스윙종목: AI TOP'+STOCKS.length+'개 (매 5분 자동 교체)\n'
       +'AI분석: '+(AI_SECTIONS&&AI_SECTIONS.full?'OK':'대기')+'\n'
       +'요약캐시: 국내'+Object.keys(KR_NEWS_SUMMARIES).length+' 해외'+Object.keys(GL_NEWS_SUMMARIES).length+' 공시'+Object.keys(DART_SUMMARIES).length},
-    {t:'🔄 실행 흐름', c:'구조', h:'GitHub Actions 실행 흐름',
+    {t:'🔄 실행 흐름', c:'구조', h:'GitHub Actions 실행 흐름 (v2.1)',
      b:'1. actions/checkout@v5 — 저장소 체크아웃\n'
-      +'2. actions/cache@v5 — KIS 토큰 24시간 캐시 복원\n'
-      +'3. pip install requests beautifulsoup4\n'
-      +'4. python refresh.py 실행\n'
-      +'   ├── KIS REST API — KOSPI/KOSDAQ + 스윙종목 실시간\n'
-      +'   ├── Yahoo Finance — 해외/원자재 시세 (14개)\n'
-      +'   ├── RSS 21개 + Google News 10쿼리 — 뉴스 수집\n'
-      +'   ├── 블랙리스트 필터 (비경제 50+개 키워드)\n'
-      +'   ├── DART OpenAPI — 공시 10건\n'
-      +'   ├── Claude Haiku — 뉴스/공시 요약 10건씩\n'
-      +'   ├── Claude Sonnet — 종합분석/이슈20/원자재AI\n'
-      +'   ├── Claude Sonnet — 스윙종목 AI TOP10 선정 (매 5분)\n'
-      +'   ├── Claude Haiku — 스윙 빠른 신호 10개\n'
-      +'   ├── FRED API — 미국 경제지표 8개\n'
-      +'   ├── BOK API — 한국 경제지표 4개\n'
-      +'   ├── Telegram — 조건알림 + 정기요약(1시간)\n'
-      +'   └── hloomberg.html 마커 패치 후 커밋\n'
-      +'5. actions/cache/save@v5 — KIS 토큰 캐시 저장\n'
-      +'6. git commit & push → GitHub Pages 자동 배포'},
+      +'2. pip install requests beautifulsoup4 PyNaCl\n'
+      +'3. python refresh.py\n'
+      +'   ├── KIS Secrets 토큰 재사용 / 신규발급+저장\n'
+      +'   ├── KIS REST — 지수/종목/수급\n'
+      +'   ├── Yahoo Finance — 해외/원자재 14개\n'
+      +'   ├── RSS 21개 + GNews 18쿼리\n'
+      +'   ├── DART / FRED / BOK\n'
+      +'   ├── Groq 8b — 뉴스/공시 요약 (캐시)\n'
+      +'   ├── Groq 70b — 종합분석/이슈/원자재\n'
+      +'   ├── 패턴A 4단계 체인 — 스윙TOP10\n'
+      +'   │    Step1(8b) 시그널→Step2(70b) 수급\n'
+      +'   │    Step3(70b) 리스크→Step4(8b) 전략\n'
+      +'   └── Telegram + html 패치 + git push\n'
+      +'4. GitHub Pages 자동 배포'},
     // ── 시세
     {t:'📡 시세 수집', c:'데이터', h:'실시간 시세 — KIS + Yahoo',
      b:'[ KIS REST API (국내 실시간) ]\n'
@@ -1360,19 +1381,27 @@ function buildArch(){
       +'[ 필터 ]\n'
       +'비경제 블랙리스트 50+개 키워드 자동 제거\n'
       +'(연예/스포츠/사건사고/젠더/법원판결/홍보성/협회/생활)'},
-    {t:'🤖 AI 요약/분석', c:'데이터', h:'Claude AI 분석 항목',
-     b:'[ 매 5분마다 ]\n'
-      +'뉴스 요약: 국내 10건 + 해외 10건 (Haiku, 캐시)\n'
-      +'공시 요약: 상위 10건 (Haiku, 캐시)\n'
-      +'종합분석: 4섹션 (편향/전망/추천/리스크)\n'
-      +'글로벌 이슈: 10개 (임팩트/시나리오A·B/변수/시사점)\n'
-      +'국내 이슈: 10개 (동일 구조)\n'
-      +'원자재 AI: 8개 (방향성/관련주)\n'
-      +'스윙종목 AI TOP10 선정: Sonnet (시세+뉴스+이슈 기반, 매 5분)\n'
-      +'스윙 빠른신호: TOP10 (매수/관망/매도, Haiku)\n\n'
-      +'[ 1일 3회 (07시/15시/23시 KST) ]\n'
-      +'종목 상세분석: AI TOP10 Sonnet 4\n'
-      +'(펀더멘털/기술적분석/진입가/목표가/손절가/촉매/리스크)'},
+    {t:'🤖 AI 분석 — Groq', c:'데이터', h:'Groq AI 분석 (v2.1)',
+     b:'[ 모델 ]\n'
+      +'llama-3.3-70b-versatile — 고품질 (종합/이슈/원자재/Step2·3)\n'
+      +'llama-3.1-8b-instant — 고속 (번역/요약/Step1·4)\n\n'
+      +'[ TokenBucket TPM 관리 ]\n'
+      +'목표: 5,400 TPM (한도 6,000의 90%)\n'
+      +'충전: 90 tok/초, latency 중 자동 충전\n'
+      +'보정: 실제 usage로 과추정분 환불\n'
+      +'429: retry-after 대기 후 버킷 리셋\n\n'
+      +'[ 매시간 :07분 실행 ]\n'
+      +'번역/요약: 해외뉴스 + 국내10 + 해외10 + 공시10\n'
+      +'종합분석: 편향/전망/추천/리스크 4섹션 (70b)\n'
+      +'글로벌이슈 10개 + 국내이슈 10개 (70b)\n'
+      +'원자재 AI 8개: 방향성/관련주 (70b)\n\n'
+      +'[ 패턴A 체인드 리서치 — 매시간 :07분 ]\n'
+      +'Step1(8b): 뉴스→종목 시그널 (매수/매도/중립+urgency)\n'
+      +'Step2(70b): 시그널+KIS수급 → 후보 20개 선별\n'
+      +'Step3(70b): VIX/섹터/수급 리스크 필터 → TOP10\n'
+      +'Step4(8b): TOP10 → 목표가/손절가 생성\n\n'
+      +'[ 종목 상세분석 — 08:07 / 20:07 KST ]\n'
+      +'AI TOP10 (70b): 펀더멘털/기술/진입가/목표/손절/촉매'},
     // ── 경제지표
     {t:'📊 경제지표', c:'데이터', h:'FRED + 한국은행 경제지표',
      b:'[ FRED API (미국 연방준비은행) ]\n'
@@ -1404,18 +1433,25 @@ function buildArch(){
       +'색상 강도: 등락폭 클수록 진한 색\n'
       +'초록=상승 / 빨강=하락'},
     // ── 운영
-    {t:'⏱ 실행 스케줄', c:'운영', h:'GitHub Actions 자동 실행 스케줄',
-     b:'[ 자동 실행 ]\n'
-      +'주중(월~금) KST 06:00~23:00 → 5분마다\n'
-      +'주중 KST 07:00/15:00/23:00 → 종목 상세분석\n'
-      +'주말/KST 00:00~05:59 → 실행 안 함\n\n'
+    {t:'⏱ 실행 스케줄', c:'운영', h:'GitHub Actions 스케줄 (v2.1)',
+     b:'[ 5분 주기 — 시세/뉴스 ]\n'
+      +'KST 06:00~08:00: UTC 일~목 21:00~23:00\n'
+      +'KST 09:00~23:00: UTC 월~금 00:00~14:00\n'
+      +'주말 · KST 00:00~05:59 미실행\n\n'
+      +'[ 매시간 :07분 — Full AI ]\n'
+      +'KST 06:07~23:07 (주중)\n'
+      +'종합분석+이슈+원자재+패턴A 전체 실행\n'
+      +'정각(:00) 회피 → GitHub 고부하 방지\n\n'
       +'[ 수동 실행 ]\n'
-      +'Actions → Run workflow → 즉시 실행\n'
-      +'mode=stock → 종목 상세분석만 실행\n\n'
-      +'[ 예상 소요 시간 ]\n'
-      +'일반 실행: 약 2~3분\n'
-      +'종목분석 포함: 약 5~7분\n'
-      +'timeout: 10분'},
+      +'Actions → Run workflow → mode 선택\n'
+      +'full / partial / stock\n\n'
+      +'[ 소요 시간 ]\n'
+      +'5분 주기(AI 없음): 1~2분\n'
+      +'Full AI (TokenBucket): 약 11.6분\n'
+      +'timeout: 15분\n\n'
+      +'[ KIS 토큰 ]\n'
+      +'발급 시 GitHub Secrets 자동 저장\n'
+      +'재사용으로 KIS 문자 알림 최소화'},
     {t:'🔔 Telegram 알림', c:'운영', h:'Telegram 알림 조건',
      b:'그룹: Hloomberg Alerts\n\n'
       +'[ 알림 조건 ]\n'
@@ -1455,6 +1491,18 @@ function buildArch(){
       +'[ 블랙리스트 — 자동 제거 ]\n'
       +'연예, 스포츠, 사건사고, BTS, 손흥민, 콘서트, 드라마\n'
       +'탄핵, 대선, 총선, 이혼, 결혼 등 비경제 35개 키워드'},
+  ,
+  // ── 패턴A 체인드 리서치 상세
+  {t:'🔗 패턴A — 개요/장점', c:'패턴A 체인', h:'패턴A 4단계 체인드 리서치 — 개요 및 장점',
+   b:'[ 개요 ]\n'    +'단일 AI 호출이 아닌 4단계 순차 파이프라인.\n'    +'각 단계의 출력이 다음 단계의 입력으로 흘러 품질이 누적됨.\n'    +'인간 애널리스트 리서치 프로세스를 AI 체인으로 구현:\n'    +'뉴스 스캔 → 후보 선별 → 리스크 검토 → 전략 수립\n\n'    +'[ 단일 호출 vs 패턴A ]\n'    +'단일 호출: 시세+뉴스 800자 → "TOP10 골라줘" → 근거 1문장\n'    +'패턴A:\n'    +'  ✗ 수급 미반영 → ✓ KIS 외국인/기관 실시간 수급 반영\n'    +'  ✗ 리스크 필터 없음 → ✓ VIX·섹터·수급 3중 필터\n'    +'  ✗ 목표가 없음 → ✓ 현재가 기준 목표가·손절가 생성\n'    +'  ✗ 섹터 쏠림 → ✓ 동일 섹터 최대 3개 제한\n\n'    +'[ 모델 선택 전략 ]\n'    +'8b (고속): Step1 분류 작업 + Step4 계산 작업\n'    +'70b (고품질): Step2 수급 통합 판단 + Step3 리스크 판단\n'    +'→ TPM 분산 + 비용 절감 + 품질 유지 동시 달성\n\n'    +'[ 체인의 본질 ]\n'    +'단계마다 더 좁은 범위를 더 깊게 분석:\n'    +'수십 개 후보 → 20개 → 10개로 정제\n'    +'각 단계 프롬프트가 점점 구조적·구체적으로 변화\n'    +'최종 TOP10 = 뉴스·수급·리스크 3중 검증 통과'},
+  {t:'🔗 Step1 — 시그널 추출', c:'패턴A 체인', h:'Step 1 — 뉴스 시그널 추출 (llama-3.1-8b)',
+   b:'[ 목적 ]\n'    +'뉴스 21피드·이슈 20개를 빠르게 스캔해\n'    +'종목별 매수/매도/중립 시그널과 urgency를 추출\n\n'    +'[ 모델 ]\n'    +'llama-3.1-8b-instant — 고속 분류 작업\n'    +'분류 작업에는 70b 불필요, 8b로 TPM 절약\n\n'    +'[ 입력 ]\n'    +'국내뉴스 전체 + 글로벌 이슈 10개 + 국내 이슈 10개 + 현재시세\n\n'    +'[ 출력 JSON 구조 ]\n'    +'[{"name":"한화에어로", "code":"012450",\n'    +'  "signal":"매수", "reason":"중동 수주 공시",\n'    +'  "sector":"방산", "urgency":"고"},...]\n\n'    +'[ 특징 ]\n'    +'명시적 언급 종목 우선, 섹터 수혜 종목도 포함\n'    +'urgency: 고=즉시대응 / 중=모니터링 / 저=참고\n'    +'이 출력이 Step2의 핵심 입력으로 그대로 전달됨'},
+  {t:'🔗 Step2 — 수급 결합', c:'패턴A 체인', h:'Step 2 — KIS 수급 결합 후보 선별 (llama-3.3-70b)',
+   b:'[ 목적 ]\n'    +'Step1 시그널에 KIS 실시간 수급을 결합해\n'    +'점수화 후 후보 20개 선별\n\n'    +'[ 모델 ]\n'    +'llama-3.3-70b-versatile — 복합 판단 필요\n'    +'수급 강도 + 시그널 강도를 종합 평가\n\n'    +'[ 추가 입력 (Step1 출력 + 신규) ]\n'    +'KIS 외국인 순매수 TOP5 (금액, 종목명)\n'    +'KIS 기관 순매수 TOP5 (금액, 종목명)\n'    +'KIS 등락률 상위 10개 (종목명, 등락률)\n'    +'KIS 실시간 종목 현재가\n\n'    +'[ 출력 JSON 구조 ]\n'    +'[{"name":"...", "code":"...", "mkt":"KOSPI",\n'    +'  "score":85, "signal_strength":"강",\n'    +'  "supply_demand":"긍정", "sector":"방산",\n'    +'  "reason":"선별 근거"},...]\n\n'    +'[ 핵심 로직 ]\n'    +'뉴스 긍정 + 외국인 대규모 매도 → 점수 하락\n'    +'뉴스 중립 + 기관 집중 매수 → 점수 상승\n'    +'섹터 분산 고려: 동일 섹터 집중 방지'},
+  {t:'🔗 Step3 — 리스크 필터', c:'패턴A 체인', h:'Step 3 — 리스크 필터 TOP10 확정 (llama-3.3-70b)',
+   b:'[ 목적 ]\n'    +'Step2 후보 20개에 3중 리스크 필터 적용해 TOP10 확정\n\n'    +'[ 모델 ]\n'    +'llama-3.3-70b-versatile — 종합 판단 핵심 단계\n\n'    +'[ 추가 입력 (Step2 출력 + 신규) ]\n'    +'현재 BRENT유가 / USD/KRW / VIX 실시간\n'    +'AI 종합분석 리스크 섹션 (당일 생성분)\n\n'    +'[ 3중 필터 기준 ]\n'    +'① VIX 필터: VIX > 20이면 risk 4~5 종목 제거\n'    +'② 섹터 분산: 동일 섹터 최대 3개 허용\n'    +'③ 수급+시그널: 수급 부정 + 시그널 약 → 우선 제거\n\n'    +'[ 출력 — HLOOMBERG STOCKS 배열 최종형 ]\n'    +'[{"name":"...", "code":"...", "mkt":"KOSPI",\n'    +'  "th":"방산", "tc":"tdf",\n'    +'  "act":"분할매수", "ac":"aby",\n'    +'  "risk":2, "desc":"체인 분석 근거"},...]\n\n'    +'[ AI 리스크 분석 주입 의미 ]\n'    +'Step3는 당일 생성된 AI 종합분석의 리스크 섹션을\n'    +'컨텍스트로 받아 시장 위험도 인식 후 필터 적용\n'    +'→ 체인 내 교차 검증 구조'},
+  {t:'🔗 Step4 — 전략 생성', c:'패턴A 체인', h:'Step 4 — 매매전략 생성 (llama-3.1-8b)',
+   b:'[ 목적 ]\n'    +'확정 TOP10에 KIS 현재가를 붙여\n'    +'실현 가능한 목표가·손절가 생성\n\n'    +'[ 모델 ]\n'    +'llama-3.1-8b-instant — 구조화 계산 작업\n'    +'입력이 이미 정제된 JSON → 8b로 충분\n\n'    +'[ 입력 (Step3 출력 + 신규) ]\n'    +'확정 TOP10 JSON (name/code/mkt/act/risk/desc)\n'    +'KIS 실시간 현재가 전체\n\n'    +'[ 출력 JSON 구조 ]\n'    +'[{"name":"한화에어로", "signal":"매수",\n'    +'  "reason":"1줄 근거",\n'    +'  "target":1600000, "stop":1350000},...]\n\n'    +'[ swing_quick / swing_top10 보강 ]\n'    +'swing_quick: 매수/관망/매도 신호 + 이유 + 가격\n'    +'swing_top10 desc: "목표:160만 손절:135만" 자동 추가\n\n'    +'[ 프롬프트 핵심 조건 ]\n'    +'"현재가 기준 실현 가능한" — 비현실적 가격 방지\n'    +'KIS 실시간가 직접 주입으로 계산 정확도 향상'}
   ];
 }
 function renderArchList(){
