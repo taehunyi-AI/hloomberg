@@ -1763,13 +1763,18 @@ def translate_titles(items):
     if not to_tr or not GROQ_KEY: return
     try:
         titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
-        result = call_claude('claude-sonnet-4-20250514',
-            '전문 금융/경제 뉴스 번역가. 영문 제목을 자연스러운 한국어로 번역. '
-            '규칙: ①번호 유지 ②번역문만 출력 ③모든 외국어(영어·한자·일본어·러시아어 등) 완전 한국어 번역 — 원문 단어 절대 남기지 말 것 '
-            '④고유명사(인명·국명·기관명)는 한국어 표준 표기 ⑤금융 전문용어 정확히 번역 '
-            '⑥직역 금지 — 한국 독자가 즉시 이해하는 자연스러운 표현 '
-            '⑦각 제목은 독립된 한 줄 ⑧번역 결과에 영문자·한자·외국어 절대 포함 금지',
-            f'번역:\n{titles_str}', 1000)
+        result = call_groq(GROQ_MODEL_HIGH,
+            '당신은 전문 금융/경제 뉴스 번역가입니다. 아래 영문 뉴스 제목을 한국어로 번역하세요. '
+            '규칙: '
+            '1. 번호를 그대로 유지하세요. '
+            '2. 번역된 한국어 제목만 출력하세요. 다른 설명 없이. '
+            '3. 모든 영어 단어를 한국어로 완전히 번역하세요. 영어 단어를 남기지 마세요. '
+            '4. 고유명사(인명, 국명, 기관명)는 한국어 표준 표기를 사용하세요. '
+            '5. 금융 전문용어는 정확하게 번역하세요. '
+            '6. 자연스러운 한국어 표현을 사용하세요. '
+            '7. 각 번역된 제목은 한 줄로 출력하세요. '
+            '8. 출력에 영문자나 한자를 포함하지 마세요.',
+            f'다음 영문 뉴스 제목들을 한국어로 번역하세요:\n{titles_str}', 2000)
         for line in result.strip().split('\n'):
             m = re.match(r'^(\d+)\.\s*(.+)', line.strip())
             if m:
@@ -1845,9 +1850,10 @@ if GROQ_KEY and AI_PARTIAL:
             label = SECTION_LABELS.get(hkey, header)
             # 본문 포맷팅
             body = body.replace('**','').replace('*','')
+            body = re.sub(r'^#{1,4}\s*', '', body, flags=re.MULTILINE)  # ## 헤더 제거
             body = re.sub(r'^- ', '• ', body, flags=re.MULTILINE)
-            # 번호 앞 줄바꿈: '2. ' 등 앞에 빈 줄 삽입
-            body = re.sub(r'([.!?]\s+)(\d+\.\s)', r'\1\n\n\2', body)
+            # 번호 앞 줄바꿈: '2. ' '3. ' 등 앞에 빈 줄 삽입 (앞 문자 무관)
+            body = re.sub(r'\s+(\d+\.\s+)', r'\n\n\1', body)
             # 단락 구분 — 빈줄 기준으로 <p> 태그 생성
             paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
             body_html = ''.join(f'<p style="margin:0 0 12px 0">{HE(pp)}</p>' for pp in paras) if paras else HE(body)
@@ -2315,9 +2321,14 @@ if GROQ_KEY:
                     if len(sents) == 0: return None
                     if len(sents) == 1: return sents[0]
                     # 2문장으로 제한
-                    return sents[0] + ' ' + sents[1]
+                    return sents[0] + '\n\n' + sents[1]
                 raw_paras = [' '.join(p.strip().split('\n')) for p in t.strip().split('\n\n') if p.strip()]
-                paras = [r for r in (_two_sent(p) for p in raw_paras) if r]
+                # _two_sent 결과를 \n\n 기준으로 재분리 → 각 문장이 별도 <p>
+                paras = []
+                for _rp in raw_paras:
+                    _ts = _two_sent(_rp)
+                    if _ts:
+                        paras.extend([s.strip() for s in _ts.split('\n\n') if s.strip()])
                 t_html = ''.join([
                     f'<p style="margin:0 0 10px 0;color:var(--blue);font-weight:600">{p}</p>'
                     if p.startswith('<strong>') else
