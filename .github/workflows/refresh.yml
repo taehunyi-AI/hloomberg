@@ -45,16 +45,21 @@ jobs:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
-          key: kis-token-${{ github.repository }}
-          restore-keys: kis-token-
+          key: kis-token-${{ github.run_id }}
+          restore-keys: |
+            kis-token-
 
       - name: Install deps
-        run: pip install requests beautifulsoup4
+        run: pip install requests beautifulsoup4 PyNaCl
 
       - name: Fetch & Patch
         env:
-          GROQ_API_KEY:       ${{ secrets.GROQ_API_KEY }}
-          DART_API_KEY:       ${{ secrets.DART_API_KEY }}
+          GROQ_API_KEY:         ${{ secrets.GROQ_API_KEY }}
+          DART_API_KEY:         ${{ secrets.DART_API_KEY }}
+          GH_PAT:               ${{ secrets.GH_PAT }}
+          GITHUB_REPOSITORY:    ${{ github.repository }}
+          KIS_ACCESS_TOKEN:     ${{ secrets.KIS_ACCESS_TOKEN }}
+          KIS_TOKEN_EXPIRED:    ${{ secrets.KIS_TOKEN_EXPIRED }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
           FRED_API_KEY:       ${{ secrets.FRED_API_KEY }}
@@ -73,12 +78,12 @@ jobs:
 
       - name: Save KIS token cache
         uses: actions/cache/save@v5
-        if: always() && steps.kis-cache.outputs.cache-hit != 'true'
+        if: always()
         with:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
-          key: kis-token-${{ github.repository }}
+          key: kis-token-${{ github.run_id }}
 
       - name: Commit & Push
         run: |
