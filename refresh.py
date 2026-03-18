@@ -1677,26 +1677,58 @@ def call_claude(model, system, user, max_tokens=3000):
     return call_ai(model, system, user, max_tokens)
 
 def extract_json_array(text):
-    """응답 텍스트에서 JSON 배열을 안전하게 추출. 마크다운/설명문 혼입 대응."""
+    """JSON 배열/객체 모두 처리. 주석·trailing comma·불완전 JSON·잘린 응답 대응."""
     if not text:
         return None
-    # 1차: 코드블록 제거
     text = re.sub(r'```(?:json)?\s*', '', text).strip().rstrip('`').strip()
-    # 2차: 첫 [ ~ 마지막 ] 추출
-    s1, s2 = text.find('['), text.rfind(']')
+    text = re.sub(r'//[^\n]*', '', text)
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+
+    def _try_parse(s):
+        try: return json.loads(s)
+        except Exception: return None
+
+    def _obj_to_list(obj):
+        if not isinstance(obj, dict): return None
+        result = []
+        for k, v in obj.items():
+            if isinstance(v, dict):
+                item = {'name': k}; item.update(v); result.append(item)
+            elif isinstance(v, list): result.extend(v)
+        return result if result else [obj]
+
+    def _recover_arr(s, start):
+        last = s.rfind('},', start)
+        if last > start:
+            r = _try_parse(s[start:last+1] + ']')
+            if isinstance(r, list): return r
+        return None
+
+    def _recover_obj(s, start):
+        last = s.rfind('},', start)
+        if last > start:
+            r = _try_parse(s[start:last+1] + '}')
+            if isinstance(r, dict): return _obj_to_list(r)
+        return None
+
+    s1, s2 = text.find('['), text.rfind(']'  )
     if s1 >= 0 and s2 > s1:
-        candidate = text[s1:s2+1]
-        try:
-            return json.loads(candidate)
-        except json.JSONDecodeError:
-            # 3차: 불완전 JSON 복구 — 마지막 완전한 객체까지만 파싱
-            last_brace = candidate.rfind('},')
-            if last_brace > 0:
-                trimmed = candidate[:last_brace+1] + ']'
-                try:
-                    return json.loads(trimmed)
-                except Exception:
-                    pass
+        r = _try_parse(text[s1:s2+1])
+        if isinstance(r, list): return r
+        rec = _recover_arr(text, s1)
+        if rec: return rec
+
+    if s1 >= 0 and (s2 < 0 or s2 < s1):
+        rec = _recover_arr(text, s1)
+        if rec: return rec
+
+    o1, o2 = text.find('{'), text.rfind('}'  )
+    if o1 >= 0 and o2 > o1:
+        obj = _try_parse(text[o1:o2+1])
+        if isinstance(obj, dict): return _obj_to_list(obj)
+        rec = _recover_obj(text, o1)
+        if rec: return rec
+
     return None
 
 def translate_titles(items):
