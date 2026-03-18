@@ -1816,7 +1816,7 @@ if GROQ_KEY and AI_PARTIAL:
         print('  [1/3] 종합분석...')
         t = call_claude(
             'claude-sonnet-4-20250514',
-            '한국 증시 전문 애널리스트 겸 글로벌 매크로 전략가. 한국어. 문어체로 작성. 존댓말 사용 금지. 각 섹션 최소 3~5문장 이상 구체적으로 작성.',
+            '한국 증시 전문 애널리스트 겸 글로벌 매크로 전략가. 반드시 한국어만 사용(영어 약어 제외). 문어체. 존댓말 금지. 러시아어·일본어·중국어 절대 사용 금지. 각 섹션 최소 3~5문장 이상 구체적으로 작성. 사실에 근거하여 작성할 것.',
             combined_prompt + '\n\n아래 4개 섹션을 각각 구체적 수치와 근거를 포함해 상세히 분석:\n\n'
             '### BIAS\n'
             '뉴스 편향/오류 분석: 어떤 뉴스가 과장되거나 축소됐는지, 놓친 관점은 무엇인지, 시장이 어떤 부분을 오독하고 있는지 분석\n\n'
@@ -2107,9 +2107,32 @@ if GROQ_KEY and AI_PARTIAL:
                     print(f'    코드 보정(DB): {_nm} {_cd} → {_db_code}')
                     _s['code'] = _db_code
                 elif not _db_code:
-                    # DB에도 없고 퍼지매칭도 실패 → 제거
-                    print(f'    제거(DB미등록): {_nm}({_cd})')
-                    continue
+                    # 네이버 금융 웹 검색으로 코드 조회 시도
+                    _web_code = None
+                    try:
+                        _sq = requests.utils.quote(_nm)
+                        _sr = safe_get(f'https://finance.naver.com/search/searchList.naver?query={_sq}', timeout=5)
+                        if _sr:
+                            from bs4 import BeautifulSoup as _BS
+                            import re as _re3
+                            _soup = _BS(_sr.content, 'html.parser')
+                            for _a in _soup.select('table.type_1 tbody tr td a')[:3]:
+                                _href = _a.get('href', '')
+                                _m = _re3.search(r'code=(\d{6})', _href)
+                                if _m:
+                                    _cand_nm = _a.get_text(strip=True)
+                                    _web_code = _m.group(1)
+                                    _s['name'] = _cand_nm
+                                    _s['code'] = _web_code
+                                    _code_db[_cand_nm] = _web_code
+                                    print(f'    웹검색 보정: {_nm} → {_cand_nm}({_web_code})')
+                                    break
+                    except Exception as _we:
+                        print(f'    웹검색 실패 [{_nm}]: {_we}')
+                    if not _web_code:
+                        # 웹 검색도 실패 → 제거
+                        print(f'    제거(DB미등록): {_nm}({_cd})')
+                        continue
                 _fixed.append(_s)
             step2_candidates = _fixed
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
@@ -2273,11 +2296,12 @@ if GROQ_KEY:
                 t = re.sub(r'^#{1,4}\s*(.+)$', r'<strong>\1</strong>', t, flags=re.MULTILINE)
                 t = t.replace('**','').replace('*','')
                 t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
-                paras = [p.strip() for p in t.strip().split('\n\n') if p.strip()]
+                # 단락 분리 (\n\n 기준), 단락 내 \n은 공백으로 합치기
+                paras = [' '.join(p.strip().split('\n')) for p in t.strip().split('\n\n') if p.strip()]
                 t_html = ''.join([
                     f'<p style="margin:0 0 10px 0;color:var(--blue);font-weight:600">{p}</p>'
                     if p.startswith('<strong>') else
-                    f'<p style="margin:0 0 10px 0">{HE(p)}</p>'
+                    f'<p style="margin:0 0 6px 0;line-height:1.6">{HE(p)}</p>'
                     for p in paras
                 ])
                 cache[key] = {'html': t_html, 'ts': TS_SHORT}
@@ -2303,7 +2327,7 @@ if GROQ_KEY:
             if key in cache:
                 continue
             try:
-                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 한국어. 문어체로 작성. 존댓말 사용 금지. 투자자 관점 핵심 요약. 마크다운 헤더(###,##) 사용 금지. 단락으로만 작성.',
+                t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 반드시 한국어만 사용. 문어체. 존댓말 금지. 러시아어·일본어·중국어 절대 사용 금지. 마크다운 헤더 금지. 투자자 관점 핵심 요약. 각 단락은 정확히 두 문장으로 작성. 공시 내용에 충실하게 요약할 것. 임의로 내용을 만들지 말 것.',
                     f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}", 800)
                 t = re.sub(r'^#{1,4}\s*', '', t, flags=re.MULTILINE)
                 t = t.replace('**','').replace('*','')
@@ -2333,9 +2357,9 @@ if GROQ_KEY:
     dart_summaries    = clean_cache(dart_summaries, max_size=150)
 
     kr_news_summaries = summarize_news(kr_news, kr_news_summaries, '국내뉴스',
-        '한국 금융/경제 뉴스 전문 기자. 한국어. 문어체로 작성. 존댓말 사용 금지. 마크다운 헤더 절대 금지. 배경/핵심/시장영향/투자시사점 4단락 완성.', max_new=10)
+        '한국 금융/경제 뉴스 전문 기자. 반드시 한국어만 사용(영어 약어 제외). 문어체. 존댓말 금지. 마크다운 헤더 금지. 러시아어·일본어·중국어 절대 사용 금지. 각 단락은 정확히 두 문장으로 작성. 배경/핵심/시장영향/투자시사점 4단락 완성. 사실에 근거하여 뉴스 제목과 내용에 충실하게 요약할 것. 임의로 내용을 만들지 말 것.', max_new=10)
     gl_news_summaries = summarize_news(gl_news, gl_news_summaries, '해외뉴스',
-        '글로벌 금융/경제 뉴스 전문 기자. 한국어. 문어체로 작성. 존댓말 사용 금지. 마크다운 헤더 절대 금지. 배경/핵심/시장영향/투자시사점 4단락 완성.', max_new=10)
+        '글로벌 금융/경제 뉴스 전문 기자. 반드시 한국어만 사용(영어 약어 제외). 문어체. 존댓말 금지. 마크다운 헤더 금지. 러시아어·일본어·중국어 절대 사용 금지. 각 단락은 정확히 두 문장으로 작성. 배경/핵심/시장영향/투자시사점 4단락 완성. 사실에 근거하여 뉴스 제목과 내용에 충실하게 요약할 것. 임의로 내용을 만들지 말 것.', max_new=10)
     dart_summaries    = summarize_dart(dart_items, dart_summaries, max_new=10)
 
 # ─────────────────────────────────────────
