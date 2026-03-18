@@ -42,7 +42,7 @@ if not AI_MODE and _is_first_run():
     AI_MODE = 'full'
     print('[최초실행 감지] AI_MODE=full 강제 적용')
 
-STOCK_MODE = (AI_MODE == 'full')             # 상세분석: full만
+STOCK_MODE = (AI_MODE in ('full','stock'))    # 상세분석: full + stock 모드
 AI_FULL    = (AI_MODE == 'full')             # 이슈/원자재/TOP10: full만
 AI_PARTIAL = (AI_MODE in ('full','partial')) # 종합분석/TOP10: full+partial
 
