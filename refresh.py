@@ -1851,12 +1851,36 @@ if GROQ_KEY and AI_PARTIAL:
             # 본문 포맷팅
             body = body.replace('**','').replace('*','')
             body = re.sub(r'^#{1,4}\s*', '', body, flags=re.MULTILINE)  # ## 헤더 제거
+            body = re.sub(r'^-{3,}\s*$', '', body, flags=re.MULTILINE)  # --- 구분선 제거
             body = re.sub(r'^- ', '• ', body, flags=re.MULTILINE)
+            # 파이프 테이블 → HTML grid
+            def _pipe_table(text):
+                lines_t=text.split('\n');out_t=[];i_t=0
+                while i_t<len(lines_t):
+                    ln=lines_t[i_t]
+                    if ln.strip().startswith('|') and ln.count('|')>=2:
+                        if re.match(r'^[|\s:\-]+$',ln): i_t+=1; continue
+                        cells=[c.strip() for c in ln.strip().strip('|').split('|')]
+                        nc=len(cells)
+                        row='<div style="display:grid;grid-template-columns:repeat('+str(nc)+',1fr);gap:4px;padding:4px 0;border-bottom:1px solid var(--bd);font-size:12px">'
+                        for ci,cell in enumerate(cells):
+                            clr='var(--blue)' if ci==0 else 'var(--txt2)'
+                            row+=f'<span style="color:{clr}">{HE(cell)}</span>'
+                        row+='</div>';out_t.append(row)
+                    else:out_t.append(ln)
+                    i_t+=1
+                return '\n'.join(out_t)
+            body=_pipe_table(body)
             # 번호 앞 줄바꿈: '2. ' '3. ' 등 앞에 빈 줄 삽입 (앞 문자 무관)
             body = re.sub(r'\s+(\d+\.\s+)', r'\n\n\1', body)
             # 단락 구분 — 빈줄 기준으로 <p> 태그 생성
             paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
-            body_html = ''.join(f'<p style="margin:0 0 12px 0">{HE(pp)}</p>' for pp in paras) if paras else HE(body)
+            def _para_html(pp):
+                # 이미 HTML인 경우(테이블 행 등) 그대로 사용
+                if pp.startswith('<div') or pp.startswith('<h'):
+                    return pp
+                return f'<p style="margin:0 0 12px 0">{HE(pp)}</p>'
+            body_html = ''.join(_para_html(pp) for pp in paras) if paras else HE(body)
             section_html = (
                 f'<div class="ai-section">'
                 f'<h3>{icon} {HE(label)}</h3>'
