@@ -5,30 +5,94 @@ HLOOMBERG TERMINAL — refresh.py  v2026.03.19
 실행 환경  GitHub Actions  매 15분 (KST 07:00~20:00 평일)
 AI 모델    openai/gpt-oss-120b (Groq Developer, 245,000 TPM)
            전 단계 단일 모델 — call_groq(GROQ_MODEL_HIGH, ...) 직접 호출
+출력 파일  hloomberg.html → GitHub Pages 자동 배포
+캐시 파일  summaries_cache.json (뉴스/공시 요약 영속, git commit)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-실행 흐름
-  [1] 시세 수집  KIS REST(실시간) → Yahoo Finance fallback
-                 국내지수/종목/ETF + 글로벌(BRENT/WTI/GOLD/DXY 등)
-  [2] 뉴스 수집  국내 RSS 19개 + 해외 RSS 15개 + Google News 18개
-                 키워드 가중치 정렬 → 국내 10건 / 해외 10건 선별
-  [3] 공시 수집  DART OpenAPI → KIND RSS fallback → 키워드 정렬 10건
-  [4] 리서치     네이버금융 리서치 30건
-  [5] AI 분석    ① 종합분석 4섹션 (BIAS/FORECAST/PICKS/RISK)
-                 ② 이슈분석 20개 (글로벌 10 + 국내 10)
-                 ③ 원자재 AI 코멘트 8종
-                 ④ 패턴A 체인 4단계 → 스윙 TOP10 확정
-                 ⑤ 뉴스/공시 요약 캐시 (신규 항목만 생성)
-  [6] HTML 패치  hloomberg.html 마커(##TAG_S## / ##TAG_E##) 치환
-  [7] 종목분석   상세분석 7항목 (1시간 주기, STOCK_MODE=1 시 실행)
-  [8] Telegram   조건 알림 + 정기 요약 (매 정각)
+【실행 흐름 — 아키텍처】
+  [1] 시세 수집  KIS REST(1차) → Yahoo Finance fallback(2차)
+                 국내: 지수(KOSPI/KOSDAQ) + 종목 9개 + 섹터 ETF 10개
+                 글로벌: BRENT/WTI/NATGAS/GOLD/SILVER/COPPER 등 30+ 종목
+  [2] 뉴스 수집  ThreadPoolExecutor 병렬 수집
+                 국내: RSS 19개 + Google News 10개 → BLACKLIST_KW 필터
+                        → score_news() 가중치 정렬 → 상위 10건
+                 해외: RSS 15개 + Google News 8개  → score_gl() 정렬 → 10건
+                 해외 제목 → translate_titles() 한글 번역
+  [3] 공시 수집  DART OpenAPI(1차) → KIND RSS fallback(2차)
+                 score_dart() 가중치 정렬 → 상위 10건
+  [4] 리서치     네이버금융 기업분석·투자전략 scraping → 30건
+  [5] AI 분석    call_groq(GROQ_MODEL_HIGH, ...) 직접 호출
+                 ① 종합분석: BIAS / FORECAST / PICKS / RISK 4섹션
+                 ② 이슈분석: 글로벌 10개 + 국내 10개 (JSON 배열)
+                 ③ 원자재:   BRENT/WTI/NATGAS/GOLD 등 8종 방향성·관련주
+                 ④ 패턴A:    Step1(시그널) → Step2(수급20) →
+                              Step3(TOP10) → Step4(목표가/손절가)
+                 ⑤ 요약 캐시: 뉴스·공시 신규 항목만 생성, summaries_cache.json 저장
+  [6] HTML 패치  patch(html, '##TAG_S##', '##TAG_E##', content) 27개 마커 치환
+                 JS 마커: TICKS, KIS_PRICES, STOCKS, KR/GL_NEWS_DATA 등
+                 HTML 마커: KR_NEWS, GL_NEWS, DART, AI, ISSUES_GL 등
+  [7] 종목분석   STOCK_MODE=1 시 실행 (1시간 주기)
+                 패턴A TOP10 우선, 없으면 STOCK_LIST 기본 9종목
+                 7항목: 펀더멘털/기술적/진입전략/목표가/손절/촉매/종합
+  [8] Telegram   조건 알림: 급등락 ±3% / 임팩트 상 이슈 / BRENT $110↑·$70↓
+                 정기 요약: 매 정각 시세·이슈·스윙신호·뉴스 (중복 방지 캐시)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-GitHub Secrets (필수)
-  GROQ_API_KEY  DART_API_KEY  FRED_API_KEY  BOK_API_KEY
-  KIS_APP_KEY   KIS_APP_SECRET  GH_PAT
-  TELEGRAM_BOT_TOKEN  TELEGRAM_CHAT_ID
+【AI 프롬프트 제약 — BASE 3종】
+  TEXT : 모든 외국어는 한글로 번역. 논문체(~이다, ~한다, ~됐다). 존댓말 금지.
+  JSON : 모든 외국어는 한글로 번역. 존댓말 금지. JSON만 출력. 다른 텍스트 없이.
+  SUM  : TEXT + 마크다운 헤더 금지. 각 단락은 정확히 두 문장으로 작성.
+  적용 : 종합분석·이슈·원자재(TEXT) / Step1~4(JSON) / 뉴스·공시 요약(SUM)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-출력 파일   hloomberg.html (GitHub Pages 자동 배포)
-캐시 파일   summaries_cache.json (뉴스/공시 요약 영속 캐시)
+【GitHub Secrets — 필수 9개】
+  GROQ_API_KEY       Groq AI API (Developer Plan 권장)
+  DART_API_KEY       DART 공시 OpenAPI
+  FRED_API_KEY       FRED 미국 경제지표
+  BOK_API_KEY        한국은행 ECOS (GitHub Actions IP 차단 시 스킵)
+  KIS_APP_KEY        한국투자증권 REST API
+  KIS_APP_SECRET     한국투자증권 REST API
+  GH_PAT             GitHub Personal Access Token (Pages 배포)
+  TELEGRAM_BOT_TOKEN Telegram 봇
+  TELEGRAM_CHAT_ID   Telegram 채널 ID
+  ※ KIS_ACCESS_TOKEN / KIS_TOKEN_EXPIRED — Actions가 자동 갱신
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【AI 모드 제어 — refresh.yml env】
+  AI_MODE:    full     전체 AI 분석 (KST 07:00~20:00)
+              partial  종합분석 + TOP10만
+              ''       AI 없음 (시세·뉴스만)
+  STOCK_MODE: 1        종목 상세분석 실행 (1시간 주기)
+              0        스킵
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【사용자 설명서 — 대시보드 탭 구성】
+  시황    AI 종합분석 4섹션 (BIAS/FORECAST/PICKS/RISK)
+  스윙    패턴A TOP10 종목 + 매매전략 (목표가/손절가)
+  이슈    글로벌·국내 이슈 20개 (🔴상/🟡중/🟢하 임팩트)
+  뉴스    국내 10건 + 해외 10건 — 4단락 요약 (배경/핵심/시장영향/투자시사점)
+  공시    DART 주요 공시 10건 요약
+  차트    종목별 OHLCV + MA5/20/60 + RSI14 + Bollinger(20)
+  수급    외국인·기관 순매수 + 등락률·거래량 순위
+  원자재  BRENT/WTI/GOLD 등 8종 AI 코멘트 + 차트
+  경제    FRED 미국 경제지표 + 한국은행 지표 + 섹터 히트맵
+  종목    상세분석 7항목 (1시간 갱신)
+  채팅    브라우저 내장 AI (gpt-oss-120b / Groq 직접 연결)
+  갱신:   매 15분 자동 / 브라우저 자동새로고침 15분 (900,000ms)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【문제 해결 가이드】
+  시세 없음       → KIS 토큰 만료: KIS_ACCESS_TOKEN Secret 삭제 후 재실행
+  AI 분석 없음    → GROQ_API_KEY 누락 또는 TPM 초과: Groq 대시보드 확인
+  공시 없음       → DART_KEY 누락 시 KIND RSS 자동 fallback
+  한국은행 없음   → ecos.bok.or.kr GitHub Actions IP 차단 (정상)
+  Telegram 없음   → BOT_TOKEN / CHAT_ID Secret 확인
+  요약 구버전     → summaries_cache.json 삭제 후 재실행
+  ※ 본 터미널은 개인 투자 참고용. AI 분석은 투자 권유가 아님.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【변경 이력】
+  2026-03-19  call_claude/call_ai alias 제거 → call_groq 직접 호출
+              fetch_daum_news 빈 함수 제거
+              ma(arr,n) 모듈 상단 이동 (내부 중복 제거)
+              내부 import re as _re* 6개 제거
+              AI 프롬프트 BASE 3종 표준화 (12개소 통일)
+              _has_foreign() 허용문자 방식으로 전면 개선
+              전체 함수 docstring 추가 (27 → 61개, 82% 커버리지)
+              파일 헤더에 아키텍처·설명서·변경이력 통합
 """
 import os, json, re, time, html as htmlmod
 from datetime import datetime, timezone, timedelta
@@ -1684,8 +1748,8 @@ class _SlidingWindow:
 _bucket = _SlidingWindow()
 
 def call_groq(model, system, user, max_tokens=3000):
-    """Groq API 단일 진입점 — 슬라이딩 윈도우 TPM 98% 제어
-    call_claude / call_ai alias 제거 후 전 단계에서 직접 호출됨.
+    """Groq API 단일 진입점 — 슬라이딩 윈도우 TPM 98% 제어.
+    전 단계에서 직접 호출 (alias 없음).
     est_tokens = (len(system) + len(user)) // 4 + max_tokens 로 소비량 추정."""
     if not GROQ_KEY:
         raise Exception('No GROQ_API_KEY')
