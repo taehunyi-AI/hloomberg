@@ -661,7 +661,10 @@ def fetch_kis_ohlcv(code, token, days=90):
     return ohlcv[-days:]
 
 def fetch_investor_by_stock(code, token):
-    """5순위: 종목별 외국인/기관 투자자 동향"""
+    """5순위: 종목별 외국인/기관/개인 투자자 동향 (TR: FHKST01010900).
+    output 필드: whol_smtn_ntby_qty(순매수), whol_smtn_seln_vol(매도), whol_smtn_shnu_vol(매수)
+    invst_nm: '개인' / '외국인' / '기관합계'
+    """
     j = kis_get(
         '/uapi/domestic-stock/v1/quotations/inquire-investor',
         'FHKST01010900',
@@ -675,9 +678,9 @@ def fetch_investor_by_stock(code, token):
         if tp in ('외국인','기관합계','개인'):
             try:
                 d[tp] = {
-                    'net': int(item.get('ntby_qty','0').replace(',','') or 0),
-                    'buy': int(item.get('seln_vol','0').replace(',','') or 0),
-                    'sell': int(item.get('shnu_vol','0').replace(',','') or 0),
+                    'net':  int(item.get('whol_smtn_ntby_qty','0').replace(',','') or 0),
+                    'buy':  int(item.get('whol_smtn_shnu_vol','0').replace(',','') or 0),
+                    'sell': int(item.get('whol_smtn_seln_vol','0').replace(',','') or 0),
                 }
             except: pass
     return d
@@ -769,37 +772,41 @@ if kis_token:
         '008730': '한국카본',  '036460': '한국가스공사',
         '207940': '삼성바이오',
     }
-    for code, key in stock_code_map.items():
+    def _fetch_kis_stock(item):
+        code, name = item
         r = fetch_kis_price(code, kis_token)
-        if r:
-            if not r.get('name'):
-                r['name'] = stock_code_map.get(code, code)
-            kis_stock_data[code] = r
-            print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-        # Yahoo fallback은 fetch_kis_price 내부에서 자동 처리됨
-        if not r:
-            print(f'  SKIP {code} (KIS+Yahoo 모두 실패)')
-        time.sleep(0.05)
+        if r and not r.get('name'):
+            r['name'] = name
+        return code, name, r
+    with ThreadPoolExecutor(max_workers=9) as ex:
+        for code, name, r in ex.map(_fetch_kis_stock, stock_code_map.items()):
+            if r:
+                kis_stock_data[code] = r
+                print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
+            else:
+                print(f'  SKIP {code} (KIS+Yahoo 모두 실패)')
     print(f'  KIS 완료: 지수 + {len(kis_stock_data)}개 종목')
 
     # ── 1순위: 외국인/기관 순매수 TOP10
-    print('[KIS 수급] 외국인/기관 순매수 수집...')
-    foreign_buy  = fetch_foreign_institution(kis_token, '0001', '1')   # 코스피 외국인
-    institution_buy = fetch_foreign_institution(kis_token, '0001', '2') # 코스피 기관
-    print(f'  외국인 순매수: {len(foreign_buy)}개 / 기관 순매수: {len(institution_buy)}개')
-    time.sleep(0.3)
-
-    # ── 2순위: 등락률 상위
-    print('[KIS 순위] 등락률 상위 수집...')
-    fluctuation_rank = fetch_fluctuation_rank(kis_token)
-    print(f'  등락률 상위: {len(fluctuation_rank)}개')
-    time.sleep(0.3)
-
-    # ── 3순위: 거래량 상위
-    print('[KIS 순위] 거래량 상위 수집...')
-    volume_rank_data = fetch_volume_rank(kis_token)
-    print(f'  거래량 상위: {len(volume_rank_data)}개')
-    time.sleep(0.3)
+    # ── 수급 4종 병렬 수집 (외국인/기관/등락률/거래량)
+    print('[KIS 수급/순위] 병렬 수집...')
+    def _fetch_supply(item):
+        key, fn, args = item
+        try: return key, fn(*args)
+        except: return key, []
+    _supply_tasks = [
+        ('foreign_buy',     fetch_foreign_institution, (kis_token, '0001', '1')),
+        ('institution_buy', fetch_foreign_institution, (kis_token, '0001', '2')),
+        ('fluctuation',     fetch_fluctuation_rank,    (kis_token,)),
+        ('volume',          fetch_volume_rank,         (kis_token,)),
+    ]
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        _supply_results = dict(ex.map(_fetch_supply, _supply_tasks))
+    foreign_buy      = _supply_results.get('foreign_buy', [])
+    institution_buy  = _supply_results.get('institution_buy', [])
+    fluctuation_rank = _supply_results.get('fluctuation', [])
+    volume_rank_data = _supply_results.get('volume', [])
+    print(f'  외국인 {len(foreign_buy)}개 / 기관 {len(institution_buy)}개 / 등락률 {len(fluctuation_rank)}개 / 거래량 {len(volume_rank_data)}개')
 
 else:
     if KIS_APP_KEY:
