@@ -2194,7 +2194,7 @@ if GROQ_KEY and AI_PARTIAL:
             print(f'    [DB] KIS 마스터 종목: {len(_code_db)}개')
 
             step2_resp = call_groq(GROQ_MODEL_HIGH,
-                '한국주식 포트폴리오 매니저. 모든 외국어는 한글로 번역. JSON만 출력. 다른 텍스트 없이. 반드시 [선택 가능 종목 목록]에 있는 종목만 선별할 것 — 목록 외 종목 추가 절대 금지. 목록의 이름·코드를 그대로 사용할 것.',
+                '한국주식 포트폴리오 매니저. 모든 외국어는 한글로 번역. JSON만 출력. 다른 텍스트 없이. 반드시 [선택 가능 종목 목록]에 있는 종목만 선별할 것 — 목록 외 종목 추가 절대 금지. name 필드에 반드시 한글 종목명 사용 — 코드(숫자) 절대 사용 금지. 목록의 이름·코드를 그대로 사용할 것.',
                 '\n'.join(filter(None, [
                     f'[Step1 시그널]\n{step1_str}',
                     f'[KIS 실시간 시세]\n{kis_price_str}',
@@ -2213,7 +2213,7 @@ if GROQ_KEY and AI_PARTIAL:
                     # 선택 가능 종목 전체 목록 (이름·코드 DB 기준)
                     '[선택 가능 종목 목록 — 아래 목록에서만 선택]\n' +
                     '\n'.join([f'  {nm}({cd})' for nm, cd in sorted(_code_db.items())[:60]]),
-                    '⚠️ 규칙: name과 code는 반드시 위 목록의 이름·코드 그대로 사용. 목록에 없는 종목 제외.',
+                    '⚠️ 규칙: name과 code는 반드시 위 목록의 이름(한글)·코드 그대로 사용. 목록에 없는 종목 제외. name 필드에 코드(숫자) 입력 절대 금지.',
                     '시그널 강도·수급·모멘텀 종합해 스윙 후보 20개 선별. 중복 제거, 섹터 분산 고려.',
                     '출력형식(JSON 배열):',
                     '[{"name":"삼성전자","code":"005930","mkt":"KOSPI",'
@@ -2316,7 +2316,7 @@ if GROQ_KEY and AI_PARTIAL:
             usdkrw_val = PRICE_DATA.get('USDKRW', {}).get('p', 0)
 
             step3_resp = call_groq(GROQ_MODEL_HIGH,
-                '한국주식 리스크 매니저. 모든 외국어는 한글로 번역. JSON만 출력. 다른 텍스트 없이.',
+                '한국주식 리스크 매니저. 모든 외국어는 한글로 번역. JSON만 출력. 다른 텍스트 없이. name 필드에 반드시 한글 종목명 사용 — 코드(숫자) 절대 사용 금지.',
                 f'[Step2 후보]\n{step2_str}\n\n'
                 f'[현재 매크로]\n'
                 f'BRENT:{brent_val} USD/KRW:{usdkrw_val} VIX:{vix_val}\n\n'
@@ -2353,11 +2353,12 @@ if GROQ_KEY and AI_PARTIAL:
                 for s in swing_top10
             ])
             step4_resp = call_groq(GROQ_MODEL_HIGH,
-                '한국주식 트레이딩 전략가. 모든 외국어는 한글로 번역. JSON만 출력. 다른 텍스트 없이.',
+                '한국주식 트레이딩 전략가. 모든 외국어는 한글로 번역. JSON만 출력. 다른 텍스트 없이. name 필드에 반드시 한글 종목명 사용 — 코드(숫자) 절대 사용 금지.',
                 f'[확정 TOP10]\n{top10_str}\n\n'
                 f'[KIS 실시간 시세]\n{kis_price_str}\n\n'
                 f'현재가 기준 실현 가능한 목표가/손절가 제시. 시세 없으면 일반적 변동폭(±5~10%) 기준으로 제시.\n\n'
                 f'출력형식(JSON 배열):\n'
+                f'⚠️ name은 반드시 종목명(한글)으로 — 코드(숫자) 절대 사용 금지\n'
                 f'[{{"name":"삼성전자","signal":"매수/관망/매도",'
                 f'"reason":"1줄 근거","target":75000,"stop":68000}},...]',
                 2000
@@ -2367,9 +2368,14 @@ if GROQ_KEY and AI_PARTIAL:
             # Step4 디버그
             print(f'    Step4 응답 앞 300자: {step4_resp[:300]}')
             print(f'    Step4 파싱: {len(step4_list)}개')
-            # swing_quick 구성
+            # swing_quick 구성 — name이 코드(6자리숫자)면 _code_db 역조회로 종목명 변환
+            _code_to_name = {v: k for k, v in _code_db.items()}
             for item in step4_list:
-                nm = item.get('name', '')
+                nm = item.get('name', '').strip()
+                # AI가 name에 코드를 넣은 경우 역조회로 종목명 복원
+                if re.fullmatch(r'\d{6}', nm):
+                    nm = _code_to_name.get(nm, nm)
+                    print(f'    Step4 name 보정: {item.get("name")} → {nm}')
                 if nm:
                     def _to_int(v):
                         try: return int(str(v).replace(',','').replace(' ',''))
