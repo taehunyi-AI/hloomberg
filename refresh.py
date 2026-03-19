@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-“””
+"""
 HLOOMBERG TERMINAL — refresh.py  v2026.03.19
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 실행 환경  GitHub Actions  매 15분 (KST 07:00~20:00 평일)
