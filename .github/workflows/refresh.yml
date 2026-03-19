@@ -86,8 +86,13 @@ jobs:
           git add hloomberg.html refresh.py summaries_cache.json 2>/dev/null || true
           git add .github/workflows/refresh.yml 2>/dev/null || true
           git diff --cached --quiet || git commit -m "refresh $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
-          git pull --rebase origin main || true
-          git push
+          # rebase 충돌 시 ours(현재 패치본) 우선으로 자동 해결
+          if ! git pull --rebase origin main; then
+            git checkout --ours hloomberg.html 2>/dev/null || true
+            git add hloomberg.html 2>/dev/null || true
+            git rebase --continue --no-edit 2>/dev/null || git rebase --skip
+          fi
+          git push origin HEAD:main
 
       - name: Send Telegram (after deploy)
         env:
