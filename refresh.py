@@ -2075,16 +2075,21 @@ if GROQ_KEY and AI_PARTIAL:
                 for sym, name, desc in CMDTY_AI_LIST
             ])
             cmdty_resp = call_groq(GROQ_MODEL_HIGH,
-                '글로벌 원자재 전문 애널리스트. 모든 외국어는 한글로 번역. 논문체로 작성(~이다, ~한다, ~됐다). 각 원자재별 단기 방향성·매매전략·한국 관련주 영향을 2~3문장으로.',
+                '글로벌 원자재 전문 애널리스트. 모든 외국어는 한글로 번역. 논문체로 작성(~이다, ~한다, ~됐다). 각 원자재별 단기 방향성·매매전략·한국 관련주 영향을 1~2문장으로 간결하게.',
                 f'[현재시세]\n{price_str}\n[해외뉴스요약]\n{gl_str[:800]}\n\n'
                 f'아래 원자재 각각에 대해 JSON 배열로 분석:\n{cmdty_prompt}\n\n'
                 f'출력형식: [{{"sym":"BRENT","comment":"분석내용","direction":"상승/하락/횡보","kr_stocks":"관련주"}},...]\n'
                 f'JSON만 출력, 다른 텍스트 없이.',
-                3000
+                4000
             )
-            # JSON 파싱
-            raw = re.sub(r'^```(?:json)?', '', cmdty_resp).rstrip('`').strip()
-            cmdty_list = json.loads(raw)
+            # JSON 파싱 — extract_json_array로 잘린 JSON 자동 복구
+            cmdty_list = extract_json_array(cmdty_resp) or []
+            if not cmdty_list:
+                # 직접 파싱 fallback
+                try:
+                    raw = re.sub(r'^```(?:json)?', '', cmdty_resp).rstrip('`').strip()
+                    cmdty_list = json.loads(raw)
+                except: pass
             for item in cmdty_list:
                 sym = item.get('sym','')
                 if sym:
@@ -2240,9 +2245,21 @@ if GROQ_KEY and AI_PARTIAL:
             for _s in step2_candidates:
                 _s['name'] = _normalize(_s.get('name', ''))
             _DUMMY_CODES = {'123456', '없음', 'None', '', '0'}
+            _code_to_name_s2 = {v: k for k, v in _code_db.items()}  # 역조회 맵
+            # 주요 종목 코드 집합 — 무조건 통과 (DB 미등록이어도)
+            _safe_codes = set(stock_code_map.keys())
             for _s in step2_candidates:
                 _nm = _s.get('name', '').strip()
                 _cd = str(_s.get('code', '')).strip()
+                # name이 6자리 코드면 즉시 역조회로 종목명 변환
+                if re.fullmatch(r'\d{6}', _nm):
+                    _real_nm = _code_to_name_s2.get(_nm, '')
+                    if _real_nm:
+                        print(f'    Step2 name 보정: {_nm} → {_real_nm}')
+                        _s['name'] = _real_nm
+                        _nm = _real_nm
+                        if not _cd or _cd in _DUMMY_CODES:
+                            _s['code'] = _nm if re.fullmatch(r'\d{6}', _nm) else _s.get('code','')
                 # 더미코드면 DB에서 실제코드 역조회
                 if _cd in _DUMMY_CODES and _nm in _code_db:
                     _s['code'] = _code_db[_nm]
@@ -2292,8 +2309,13 @@ if GROQ_KEY and AI_PARTIAL:
                         except Exception as _we:
                             print(f'    KIS검색 실패 [{_nm}]: {_we}')
                     if not _web_code:
-                        print(f'    제거(DB미등록): {_nm}({_cd})')
-                        continue
+                        # 주요 종목 코드이면 drop하지 않고 통과 (DB 등록 누락 대응)
+                        if _cd in _safe_codes:
+                            _s['name'] = stock_code_map.get(_cd, _nm)
+                            print(f'    통과(주요종목): {_s["name"]}({_cd})')
+                        else:
+                            print(f'    제거(DB미등록): {_nm}({_cd})')
+                            continue
                 _fixed.append(_s)
             step2_candidates = _fixed
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
