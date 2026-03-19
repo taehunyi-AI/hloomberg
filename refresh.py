@@ -2246,76 +2246,31 @@ if GROQ_KEY and AI_PARTIAL:
                 _s['name'] = _normalize(_s.get('name', ''))
             _DUMMY_CODES = {'123456', '없음', 'None', '', '0'}
             _code_to_name_s2 = {v: k for k, v in _code_db.items()}  # 역조회 맵
-            # 주요 종목 코드 집합 — 무조건 통과 (DB 미등록이어도)
-            _safe_codes = set(stock_code_map.keys())
             for _s in step2_candidates:
                 _nm = _s.get('name', '').strip()
                 _cd = str(_s.get('code', '')).strip()
-                # name이 6자리 코드면 즉시 역조회로 종목명 변환
+                # name이 6자리 코드면 역조회로 종목명 변환
                 if re.fullmatch(r'\d{6}', _nm):
                     _real_nm = _code_to_name_s2.get(_nm, '')
                     if _real_nm:
                         print(f'    Step2 name 보정: {_nm} → {_real_nm}')
                         _s['name'] = _real_nm
                         _nm = _real_nm
-                        if not _cd or _cd in _DUMMY_CODES:
-                            _s['code'] = _nm if re.fullmatch(r'\d{6}', _nm) else _s.get('code','')
                 # 더미코드면 DB에서 실제코드 역조회
                 if _cd in _DUMMY_CODES and _nm in _code_db:
                     _s['code'] = _code_db[_nm]
                     _cd = _s['code']
                     print(f'    코드 보정: {_nm} → {_cd}')
-                # 6자리 숫자 검증
+                # code 없으면 DB에서 보정 시도
                 if not re.fullmatch(r'\d{6}', _cd):
-                    print(f'    제거(형식오류): {_nm}({_cd})')
-                    continue
-                # 마스터DB 검증: _code_db에 없는 종목 제거 (잘못된 코드 원천 차단)
-                _db_code = _code_db.get(_nm)
-                if not _db_code:
-                    # 퍼지 매칭 시도 (전각→반각 후 하이픈/공백 차이 허용)
-                    _fz_match = _code_db_fz.get(_fz(_nm))
-                    if _fz_match:
-                        _db_name, _db_code = _fz_match
-                        print(f'    퍼지매칭: {_nm} → {_db_name}({_db_code})')
-                        _s['name'] = _db_name
-                        _s['code'] = _db_code
-                if _db_code and _db_code != _cd:
-                    # DB에 같은 종목명이 있는데 코드가 다르면 DB 코드로 보정
-                    print(f'    코드 보정(DB): {_nm} {_cd} → {_db_code}')
-                    _s['code'] = _db_code
-                elif not _db_code:
-                    # KIS 종목 검색 API로 코드 조회 시도
-                    _web_code = None
-                    if kis_token:
-                        try:
-                            _sr = safe_get(
-                                f'{KIS_BASE_URL}/uapi/domestic-stock/v1/quotations/search-stock-info',
-                                headers={**KIS_H(kis_token,'CTPF1604R'),'tr_cont':''},
-                                params={'PDNO':_nm[:6],'PRDT_TYPE_CD':'300','MKET_ID_CD':'01','SCTY_GRP_ID_CD':'','ISIN_CD':'','STCK_SHRN_ISCD':'','PRDT_STAT_DVSN_CD':''},
-                                timeout=3
-                            )
-                            if _sr and _sr.ok:
-                                _rj = _sr.json()
-                                for _item in _rj.get('output',[]): 
-                                    _c = _item.get('STCK_SHRN_ISCD','')
-                                    _n = _item.get('PRDT_ABRV_NAME','')
-                                    if _c and re.fullmatch(r'\d{6}',_c):
-                                        _web_code = _c
-                                        _s['name'] = _n or _nm
-                                        _s['code'] = _web_code
-                                        _code_db[_n or _nm] = _web_code
-                                        print(f'    KIS검색 보정: {_nm} → {_n}({_web_code})')
-                                        break
-                        except Exception as _we:
-                            print(f'    KIS검색 실패 [{_nm}]: {_we}')
-                    if not _web_code:
-                        # 주요 종목 코드이면 drop하지 않고 통과 (DB 등록 누락 대응)
-                        if _cd in _safe_codes:
-                            _s['name'] = stock_code_map.get(_cd, _nm)
-                            print(f'    통과(주요종목): {_s["name"]}({_cd})')
-                        else:
-                            print(f'    제거(DB미등록): {_nm}({_cd})')
-                            continue
+                    _fallback = _code_db.get(_nm)
+                    if _fallback and re.fullmatch(r'\d{6}', _fallback):
+                        _s['code'] = _fallback
+                        _cd = _fallback
+                        print(f'    코드 보정(DB): {_nm} → {_cd}')
+                    else:
+                        print(f'    제거(코드없음): {_nm}({_cd})')
+                        continue
                 _fixed.append(_s)
             step2_candidates = _fixed
             print(f'    Step2 완료: {len(step2_candidates)}개 후보')
@@ -2356,12 +2311,13 @@ if GROQ_KEY and AI_PARTIAL:
             )
             top10_list = extract_json_array(step3_resp) or []
             # 유효 종목코드 검증: 6자리 숫자만 허용 (더미코드 제거)
-            # Step3 code 누락 시 Step2 후보(_code_db) 에서 역조회 보정
+            # Step3 code 누락 시 Step2 후보 또는 _code_db에서 보정
             _step2_code_map = {s.get('name',''): s.get('code','') for s in step2_candidates}
             for _x in top10_list:
-                if isinstance(_x, dict) and _x.get('name') and not re.fullmatch(r'\d{6}', str(_x.get('code',''))):
-                    # Step2 후보에서 코드 복원
-                    _fallback = _step2_code_map.get(_x.get('name','')) or _code_db.get(_x.get('name',''))
+                if not isinstance(_x, dict) or not _x.get('name'):
+                    continue
+                if not re.fullmatch(r'\d{6}', str(_x.get('code',''))):
+                    _fallback = _step2_code_map.get(_x['name']) or _code_db.get(_x['name'])
                     if _fallback and re.fullmatch(r'\d{6}', str(_fallback)):
                         _x['code'] = _fallback
                         print(f'    Step3 code 보정: {_x["name"]} → {_fallback}')
