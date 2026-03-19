@@ -2338,7 +2338,7 @@ if GROQ_KEY and AI_PARTIAL:
             usdkrw_val = PRICE_DATA.get('USDKRW', {}).get('p', 0)
 
             step3_resp = call_groq(GROQ_MODEL_HIGH,
-                '한국주식 리스크 매니저. 모든 외국어는 한글로 번역. JSON만 출력. 다른 텍스트 없이. name 필드에 반드시 한글 종목명 사용 — 코드(숫자) 절대 사용 금지.',
+                '한국주식 리스크 매니저. 모든 외국어는 한글로 번역. JSON만 출력. 다른 텍스트 없이. name 필드에 반드시 한글 종목명 사용 — 코드(숫자) 절대 사용 금지. code 필드에 반드시 6자리 종목코드 포함 — 생략 절대 금지.',
                 f'[Step2 후보]\n{step2_str}\n\n'
                 f'[현재 매크로]\n'
                 f'BRENT:{brent_val} USD/KRW:{usdkrw_val} VIX:{vix_val}\n\n'
@@ -2356,6 +2356,15 @@ if GROQ_KEY and AI_PARTIAL:
             )
             top10_list = extract_json_array(step3_resp) or []
             # 유효 종목코드 검증: 6자리 숫자만 허용 (더미코드 제거)
+            # Step3 code 누락 시 Step2 후보(_code_db) 에서 역조회 보정
+            _step2_code_map = {s.get('name',''): s.get('code','') for s in step2_candidates}
+            for _x in top10_list:
+                if isinstance(_x, dict) and _x.get('name') and not re.fullmatch(r'\d{6}', str(_x.get('code',''))):
+                    # Step2 후보에서 코드 복원
+                    _fallback = _step2_code_map.get(_x.get('name','')) or _code_db.get(_x.get('name',''))
+                    if _fallback and re.fullmatch(r'\d{6}', str(_fallback)):
+                        _x['code'] = _fallback
+                        print(f'    Step3 code 보정: {_x["name"]} → {_fallback}')
             swing_top10 = [
                 x for x in top10_list
                 if isinstance(x, dict) and x.get('name')
