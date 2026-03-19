@@ -24,11 +24,10 @@ AI_PROVIDER = os.environ.get('AI_PROVIDER', 'claude').strip().lower()
 
 # Groq 모델 매핑 (claude 모델명 → groq 모델명)
 GROQ_MODEL_MAP = {
-    # 2026-02-20: llama-4-maverick deprecated → openai/gpt-oss-120b
-    # 2026-02-10: llama-4-scout deprecated → openai/gpt-oss-20b
-    'claude-sonnet-4-20250514':    'openai/gpt-oss-120b',   # 고품질 분석 (sonnet 대체)
-    'claude-haiku-4-5-20251001':   'openai/gpt-oss-20b',    # 빠른 요약 (haiku 대체)
+    'claude-sonnet-4-20250514':    'openai/gpt-oss-120b',
+    'claude-haiku-4-5-20251001':   'openai/gpt-oss-120b',
 }
+GROQ_ACTIVE_MODEL = 'openai/gpt-oss-120b'  # 현재 사용 모델 (HTML 표시용)
 HTML_FILE     = 'hloomberg.html'
 
 # AI_MODE: full=전체AI(KST 08:00), partial=종합+TOP10(KST 20:00), ''=없음(매 5분)
@@ -1571,10 +1570,10 @@ def extract_json_array(text):
 
 def translate_titles(items):
     to_tr = [(i, n) for i, n in enumerate(items) if not re.search(r'[가-힣]', n['title'])]
-    if not to_tr or not ANTHROPIC_KEY: return
+    if not to_tr or not (ANTHROPIC_KEY or GROQ_KEY): return
     try:
         titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
-        result = call_claude('claude-haiku-4-5-20251001',
+        result = call_ai('claude-haiku-4-5-20251001',
             '영문 뉴스 제목을 한국어로 번역. 번호 유지, 번역문만 출력.',
             f'번역:\n{titles_str}', 1000)
         for line in result.strip().split('\n'):
@@ -1584,15 +1583,15 @@ def translate_titles(items):
                 if 0 <= idx < len(to_tr):
                     orig_idx = to_tr[idx][0]
                     items[orig_idx]['titleKo'] = m.group(2).strip()
-        print(f'  해외뉴스 제목 번역: {len(to_tr)}건')
+        print(f'  해외뉴스 제목 번역: {len(to_tr)}건 [{AI_PROVIDER}]')
     except Exception as e:
         print(f'  번역 FAIL: {e}')
 
-if ANTHROPIC_KEY and AI_HOURLY:
+if (ANTHROPIC_KEY or GROQ_KEY) and AI_HOURLY:
     translate_titles(gl_news)
 
 
-if ANTHROPIC_KEY and AI_PARTIAL:
+if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
     # 시세 요약
     price_str = ' | '.join([f"{k}:{fmt_price(v['p'],k)}({'+' if v['c']>=0 else ''}{v['c']:.2f}%)" for k,v in PRICE_DATA.items()])
     # 뉴스 요약 (상위 30개)
@@ -1830,7 +1829,7 @@ kr_news_summaries = {}
 gl_news_summaries = {}
 dart_summaries    = {}
 
-if ANTHROPIC_KEY:
+if ANTHROPIC_KEY or GROQ_KEY:
     # 기존 캐시 로드
     try:
         with open(HTML_FILE, encoding='utf-8') as f:
@@ -1902,7 +1901,7 @@ if ANTHROPIC_KEY:
         print(f'  공시요약: 신규 {new_count}건 (캐시 총 {len(cache)}건)')
         return cache
 
-    if ANTHROPIC_KEY and AI_HOURLY:
+    if (ANTHROPIC_KEY or GROQ_KEY) and AI_HOURLY:
         print(f'\n[뉴스/공시 요약] 10건 전체 처리 (Haiku 고속)...')
     # 기존 캐시에서 ### 마크다운이 남아있는 항목 제거 (재생성 대상)
     def clean_cache(cache):
@@ -1938,6 +1937,22 @@ ts_unix = int(NOW.timestamp() * 1000)
 html = patch(html, '<!-- ##TS_S## -->', '<!-- ##TS_E## -->', f'🔄 {TS} · {len(kr_news)}국내 · {len(gl_news)}해외 · {len(dart_items)}공시')
 html = re.sub(r'id="refresh-ts-bar"', f'id="refresh-ts-bar" data-ts="{ts_unix}"', html)
 html = re.sub(r'<!-- ##TS_SHORT_S## -->.*?<!-- ##TS_SHORT_E## -->', f'<!-- ##TS_SHORT_S## -->{TS_SHORT}<!-- ##TS_SHORT_E## -->', html)
+
+# ── 서버사이드 AI 뱃지 (실제 refresh.py가 사용한 AI)
+_ai_label = 'GROQ' if AI_PROVIDER == 'groq' else 'CLAUDE'
+html = re.sub(r'<!-- ##SERVER_AI_S## -->.*?<!-- ##SERVER_AI_E## -->', f'<!-- ##SERVER_AI_S## -->{_ai_label}<!-- ##SERVER_AI_E## -->', html)
+# 서버사이드 AI 모델명 패치
+_model_label = GROQ_ACTIVE_MODEL if AI_PROVIDER == 'groq' else 'claude-sonnet-4'
+html = re.sub(r'<!-- ##SERVER_MODEL_S## -->.*?<!-- ##SERVER_MODEL_E## -->', f'<!-- ##SERVER_MODEL_S## -->{_model_label}<!-- ##SERVER_MODEL_E## -->', html)
+
+# ── 다음 업데이트 시간 (cron: 매 5분 주기 기준)
+_next_min = (NOW.minute // 5 + 1) * 5
+if _next_min >= 60:
+    _next_dt = NOW.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+else:
+    _next_dt = NOW.replace(minute=_next_min, second=0, microsecond=0)
+_next_str = _next_dt.strftime('%H:%M')
+html = re.sub(r'<!-- ##NEXT_UPDATE_S## -->.*?<!-- ##NEXT_UPDATE_E## -->', f'<!-- ##NEXT_UPDATE_S## -->{_next_str}<!-- ##NEXT_UPDATE_E## -->', html)
 
 # ── 시세 티커
 html = patch(html, '// ##TICKS_S##', '// ##TICKS_E##', '\n' + make_ticks_js() + '\n')
@@ -2141,7 +2156,7 @@ STOCK_LIST = [
 
 stock_analysis = {}
 
-if STOCK_MODE and ANTHROPIC_KEY:
+if STOCK_MODE and (ANTHROPIC_KEY or GROQ_KEY):
     # 상세분석 대상: AI TOP10이 있으면 사용, 없으면 STOCK_LIST 폴백
     _analysis_list = [{'name':s['name'],'th':s.get('th',''),'mkt':s.get('mkt','KOSPI'),'act':s.get('act','관심'),'desc':s.get('desc',''),'code':s.get('code','')} for s in swing_top10] if swing_top10 else STOCK_LIST
     print(f'\n[종목분석] Sonnet 상세분석 시작 ({len(_analysis_list)}개)...')
