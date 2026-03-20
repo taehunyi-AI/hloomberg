@@ -31,6 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set today (KST)
+        run: echo "TODAY=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> $GITHUB_ENV
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -43,8 +46,9 @@ jobs:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
-          key: kis-token-${{ github.repository }}
-          restore-keys: kis-token-
+          key: kis-token-${{ github.repository }}-${{ env.TODAY }}
+          restore-keys: |
+            kis-token-${{ github.repository }}-
 
       - name: Install deps
         run: pip install requests beautifulsoup4
@@ -74,7 +78,7 @@ jobs:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
-          key: kis-token-${{ github.repository }}-${{ github.run_id }}
+          key: kis-token-${{ github.repository }}-${{ env.TODAY }}
 
       - name: Commit & Push
         run: |
