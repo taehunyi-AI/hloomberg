@@ -1584,6 +1584,8 @@ def call_ai(model, system, user, max_tokens=3000):
                 },
                 timeout=120,
             )
+            if resp.status_code == 401:
+                raise Exception('Groq 401 Invalid API Key — GROQ_API_KEY Secret 재발급 필요')
             if resp.status_code == 429:
                 wait = GROQ_RETRY_WAIT * (attempt + 1)
                 print(f'    Groq 429 → {wait}초 대기 후 재시도 ({attempt+1}/{GROQ_MAX_RETRY})')
@@ -1636,8 +1638,14 @@ def extract_json_array(text):
                     pass
     return None
 
-def translate_titles(items):
-    to_tr = [(i, n) for i, n in enumerate(items) if not re.search(r'[가-힣]', n['title'])]
+def translate_titles(items, cache):
+    """해외뉴스 제목 한글 번역 — 캐시 재사용, 신규만 번역"""
+    to_tr = [(i, n) for i, n in enumerate(items)
+             if not re.search(r'[가-힣]', n['title']) and n['title'] not in cache]
+    # 캐시에서 먼저 적용
+    for n in items:
+        if n['title'] in cache:
+            n['titleKo'] = cache[n['title']]
     if not to_tr or not (ANTHROPIC_KEY or GROQ_KEY): return
     try:
         titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
@@ -1649,14 +1657,14 @@ def translate_titles(items):
             if m:
                 idx = int(m.group(1)) - 1
                 if 0 <= idx < len(to_tr):
-                    orig_idx = to_tr[idx][0]
-                    items[orig_idx]['titleKo'] = m.group(2).strip()
-        print(f'  해외뉴스 제목 번역: {len(to_tr)}건 [{AI_PROVIDER}]')
+                    orig_idx, orig_n = to_tr[idx]
+                    ko = m.group(2).strip()
+                    items[orig_idx]['titleKo'] = ko
+                    cache[orig_n['title']] = ko  # 캐시에 저장
+        print(f'  해외뉴스 제목 번역: {len(to_tr)}건 신규 / 캐시 {len(cache)}건 [{AI_PROVIDER}]')
     except Exception as e:
         print(f'  번역 FAIL: {e}')
 
-if (ANTHROPIC_KEY or GROQ_KEY) and AI_HOURLY:
-    translate_titles(gl_news)
 
 
 if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
@@ -1896,6 +1904,7 @@ else:
 kr_news_summaries = {}
 gl_news_summaries = {}
 dart_summaries    = {}
+title_trans       = {}
 
 if ANTHROPIC_KEY or GROQ_KEY:
     # 기존 캐시 로드
@@ -1913,7 +1922,8 @@ if ANTHROPIC_KEY or GROQ_KEY:
         kr_news_summaries = extract_cache('// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', existing_html)
         gl_news_summaries = extract_cache('// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', existing_html)
         dart_summaries    = extract_cache('// ##DART_SUMMARIES_S##',    '// ##DART_SUMMARIES_E##',    existing_html)
-        print(f'  캐시 로드: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)}')
+        title_trans       = extract_cache('// ##TITLE_TRANS_S##',       '// ##TITLE_TRANS_E##',       existing_html)
+        print(f'  캐시 로드: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)} 번역={len(title_trans)}')
     except Exception as e:
         print(f'  캐시 로드 실패: {e}')
 
@@ -1978,6 +1988,9 @@ if ANTHROPIC_KEY or GROQ_KEY:
     gl_news_summaries = clean_cache(gl_news_summaries)
     dart_summaries    = clean_cache(dart_summaries)
 
+
+    # 해외뉴스 제목 한글 번역 (매 실행, 캐시 재사용)
+    translate_titles(gl_news, title_trans)
     kr_news_summaries = summarize_news(kr_news, kr_news_summaries, '국내뉴스',
         '한국 금융/경제 뉴스 전문 기자. 한국어. 음슴체(~임,~함,~됨). 존댓말 금지. 마크다운 헤더 절대 금지. 배경/핵심/시장영향/투자시사점 4단락 완성.', max_new=10)
     gl_news_summaries = summarize_news(gl_news, gl_news_summaries, '해외뉴스',
@@ -2126,7 +2139,8 @@ def summaries_to_js(cache, var_name):
 html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
 html = patch(html, '// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', summaries_to_js(gl_news_summaries, 'GL_NEWS_SUMMARIES'))
 html = patch(html, '// ##DART_SUMMARIES_S##',    '// ##DART_SUMMARIES_E##',    summaries_to_js(dart_summaries,    'DART_SUMMARIES'))
-print(f'  SUMMARIES: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)}')
+html = patch(html, '// ##TITLE_TRANS_S##',       '// ##TITLE_TRANS_E##',       summaries_to_js(title_trans,       'TITLE_TRANS'))
+print(f'  SUMMARIES: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)} 번역캐시={len(title_trans)}')
 
 def dart_to_js(items):
     lines = ['[']
