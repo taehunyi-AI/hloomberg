@@ -69,12 +69,12 @@ jobs:
 
       - name: Save KIS token cache
         uses: actions/cache/save@v5
-        if: always() && steps.kis-cache.outputs.cache-hit != 'true'
+        if: always()
         with:
           path: |
             /tmp/kis_token.json
             /tmp/tg_alert_cache.json
-          key: kis-token-${{ github.repository }}
+          key: kis-token-${{ github.repository }}-${{ github.run_id }}
 
       - name: Commit & Push
         run: |
