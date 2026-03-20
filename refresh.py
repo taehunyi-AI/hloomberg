@@ -2289,6 +2289,20 @@ html = patch(html, '// ##CMDTY_AI_S##', '// ##CMDTY_AI_E##',
 html = patch(html, '// ##SWING_QUICK_S##', '// ##SWING_QUICK_E##',
     f'\nconst SWING_QUICK={json.dumps(swing_quick if "swing_quick" in dir() else {}, ensure_ascii=False)};\n')
 
+# GROQ_KEY를 HTML에 주입 (브라우저 AI 호출용)
+if GROQ_KEY:
+    html = html.replace('Bearer ##GROQ_KEY##', f'Bearer {GROQ_KEY}')
+else:
+    html = html.replace('Bearer ##GROQ_KEY##', 'Bearer ')
+
+# AI_PROVIDER 클라이언트 토글 제거됨 — groq 고정
+
+with open(HTML_FILE, 'w', encoding='utf-8') as f:
+    f.write(html)
+
+print(f'\n✅ Done — {TS}')
+print(f'   시세:{len(PRICE_DATA)} 국내뉴스:{len(kr_news)} 해외뉴스:{len(gl_news)} 공시:{len(dart_items)} 리서치:{len(research_items)} AI:{"OK" if ai_sections["full"] else "SKIP"} 종목분석:{len(stock_analysis)}')
+
 # ─────────────────────────────────────────
 # ─────────────────────────────────────────
 # Telegram 알림
@@ -2444,23 +2458,3 @@ if TG_BOT:
             print('\n[Telegram] 알림 조건 없음 (정기요약 대기중)')
 else:
     print('\n[Telegram] TELEGRAM_BOT_TOKEN 미설정 — 스킵')
-
-# GROQ_KEY를 HTML에 주입 (브라우저 AI 호출용)
-if GROQ_KEY:
-    html = html.replace('Bearer ##GROQ_KEY##', f'Bearer {GROQ_KEY}')
-else:
-    html = html.replace('Bearer ##GROQ_KEY##', 'Bearer ')
-
-# AI_PROVIDER 기본값을 HTML에 반영
-provider_default = 'groq' if (AI_PROVIDER == 'groq' and GROQ_KEY) else 'claude'
-html = re.sub(
-    r"localStorage\.getItem\('hloomberg_ai_provider'\) \|\| '[^']*'",
-    f"localStorage.getItem('hloomberg_ai_provider') || '{provider_default}'",
-    html
-)
-
-with open(HTML_FILE, 'w', encoding='utf-8') as f:
-    f.write(html)
-
-print(f'\n✅ Done — {TS}')
-print(f'   시세:{len(PRICE_DATA)} 국내뉴스:{len(kr_news)} 해외뉴스:{len(gl_news)} 공시:{len(dart_items)} 리서치:{len(research_items)} AI:{"OK" if ai_sections["full"] else "SKIP"} 종목분석:{len(stock_analysis)}')
