@@ -1099,6 +1099,7 @@ GL_RSS = [
     ('https://www.scmp.com/rss/91/feed',                                                    'SCMP',        '아시아','tg'),
     ('https://economictimes.indiatimes.com/rssfeedstopstories.cms',                         'ET India',    '아시아','tg'),
     ('https://ir.thomsonreuters.com/rss/news-releases.xml',                               'TR IR',       'gl',   'tm'),
+    ('https://www.ft.com/myft/following/9224e6f5-7d8e-4256-b8e0-576eb7400271.rss',       'FT',          '국제',  'tm'),
     ('https://feeds.content.dowjones.io/public/rss/RSSMarketsMain',                       'WSJ Markets', '미국',  'tm'),
     ('https://feeds.content.dowjones.io/public/rss/RSSUSnews',                            'WSJ US News', '미국',  'tm'),
     ('https://feeds.content.dowjones.io/public/rss/RSSWorldNews',                         'WSJ World',   '국제',  'tm'),
@@ -1106,11 +1107,10 @@ GL_RSS = [
     ('https://feeds.content.dowjones.io/public/rss/socialeconomyfeed',                    'WSJ Economy', '미국',  'tm'),
     ('https://feeds.content.dowjones.io/public/rss/socialpoliticsfeed',                   'WSJ Politics','미국',  'tm'),
     ('https://feeds.content.dowjones.io/public/rss/WSJcomUSBusiness',                     'WSJ US Biz',  '미국',  'tm'),
-    ('https://www.ft.com/myft/following/9224e6f5-7d8e-4256-b8e0-576eb7400271.rss',       'FT',              '국제',  'tm'),
     ('https://www.investing.com/rss/news_285.rss',                                        'INV CentralBnk',  '국제',  'tm'),
+    ('https://www.investing.com/rss/news_20.rss',                                         'INV Commodit',    '국제',  'ten'),
     ('https://www.investing.com/rss/news.rss',                                             'INV News',        '국제',  'tm'),
     ('https://www.investing.com/rss/news_95.rss',                                          'INV Bonds',       '국제',  'tm'),
-    ('https://www.investing.com/rss/news_20.rss',                                          'INV Commodit',    '국제',  'tm'),
     ('https://www.investing.com/rss/stock_Options.rss',                                    'INV Options',     '미국',  'tm'),
     ('https://www.investing.com/rss/stock_ETFs.rss',                                       'INV ETFs',        '미국',  'tm'),
     ('https://www.investing.com/rss/stock_Futures.rss',                                    'INV Futures',     '미국',  'tm'),
@@ -1705,12 +1705,12 @@ def translate_titles(items, cache):
     try:
         titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
         result = call_ai('claude-haiku-4-5-20251001',
-            '영문 뉴스 제목을 한국어로 번역. 반드시 "번호. 번역문" 형식으로만 출력. 예: "1. 번역된 제목". 설명/주석 절대 금지.',
-            titles_str, 1000)
+            '영문 뉴스 제목을 한국어로 번역. 아래 형식으로만 출력, 다른 텍스트 절대 금지:\n1. 번역된 제목\n2. 번역된 제목',
+            titles_str, 2000)
         parsed = 0
         result_lines = [l.strip() for l in result.strip().split('\n') if l.strip()]
         for line in result_lines:
-            # 번호. 번역문 형식
+            # 번호. 또는 번호) 형식
             m = re.match(r'^(\d+)[.)]\s*(.+)', line)
             if m:
                 idx = int(m.group(1)) - 1
