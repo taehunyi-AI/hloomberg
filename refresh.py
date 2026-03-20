@@ -1099,6 +1099,46 @@ GL_RSS = [
     ('https://www.scmp.com/rss/91/feed',                                                    'SCMP',        '아시아','tg'),
     ('https://economictimes.indiatimes.com/rssfeedstopstories.cms',                         'ET India',    '아시아','tg'),
     ('https://ir.thomsonreuters.com/rss/news-releases.xml',                               'TR IR',       'gl',   'tm'),
+    ('https://feeds.content.dowjones.io/public/rss/RSSMarketsMain',                       'WSJ Markets', '미국',  'tm'),
+    ('https://feeds.content.dowjones.io/public/rss/RSSUSnews',                            'WSJ US News', '미국',  'tm'),
+    ('https://feeds.content.dowjones.io/public/rss/RSSWorldNews',                         'WSJ World',   '국제',  'tm'),
+    ('https://feeds.content.dowjones.io/public/rss/RSSWSJD',                              'WSJ Tech',    '미국',  'tm'),
+    ('https://feeds.content.dowjones.io/public/rss/socialeconomyfeed',                    'WSJ Economy', '미국',  'tm'),
+    ('https://feeds.content.dowjones.io/public/rss/socialpoliticsfeed',                   'WSJ Politics','미국',  'tm'),
+    ('https://feeds.content.dowjones.io/public/rss/WSJcomUSBusiness',                     'WSJ US Biz',  '미국',  'tm'),
+    ('https://www.ft.com/myft/following/9224e6f5-7d8e-4256-b8e0-576eb7400271.rss',       'FT',              '국제',  'tm'),
+    ('https://www.investing.com/rss/news_285.rss',                                        'INV CentralBnk',  '국제',  'tm'),
+    ('https://www.investing.com/rss/news.rss',                                             'INV News',        '국제',  'tm'),
+    ('https://www.investing.com/rss/news_95.rss',                                          'INV Bonds',       '국제',  'tm'),
+    ('https://www.investing.com/rss/news_20.rss',                                          'INV Commodit',    '국제',  'tm'),
+    ('https://www.investing.com/rss/stock_Options.rss',                                    'INV Options',     '미국',  'tm'),
+    ('https://www.investing.com/rss/stock_ETFs.rss',                                       'INV ETFs',        '미국',  'tm'),
+    ('https://www.investing.com/rss/stock_Futures.rss',                                    'INV Futures',     '미국',  'tm'),
+    ('https://www.investing.com/rss/stock_Indices.rss',                                    'INV Indices',     '미국',  'tm'),
+    ('https://www.investing.com/rss/stock_Stocks.rss',                                     'INV Stocks',      '미국',  'tm'),
+    ('https://www.investing.com/rss/stock_stock_picks.rss',                                'INV Picks',       '미국',  'tm'),
+    ('https://www.investing.com/rss/stock_Opinion.rss',                                    'INV StockOpin',   '미국',  'tm'),
+    ('https://www.investing.com/rss/stock_Fundamental.rss',                                'INV StockFund',   '미국',  'tm'),
+    ('https://www.investing.com/rss/stock_Technical.rss',                                  'INV StockTech',   '미국',  'tm'),
+    ('https://www.investing.com/rss/286.rss',                                              'INV Popular',     '국제',  'tm'),
+    ('https://www.investing.com/rss/forex_Signals.rss',                                    'INV FX Signal',   '국제',  'tm'),
+    ('https://www.investing.com/rss/forex_Opinion.rss',                                    'INV FX Opinion',  '국제',  'tm'),
+    ('https://www.investing.com/rss/market_overview_Fundamental.rss',                      'INV MktFund',     '국제',  'tm'),
+    ('https://www.investing.com/rss/market_overview_Technical.rss',                        'INV MktTech',     '국제',  'tm'),
+    ('https://www.investing.com/rss/121899.rss',                                           'INV Analysis',    '국제',  'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=commodities', 'NASDAQ Cmdty', '국제', 'ten'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=cryptocurrencies', 'NASDAQ Crypto', '국제', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=dividends', 'NASDAQ Divid', '미국', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=earnings', 'NASDAQ Earnings', '미국', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=etfs', 'NASDAQ ETFs', '미국', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=ipos', 'NASDAQ IPOs', '국제', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=markets', 'NASDAQ Markets', '국제', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=options', 'NASDAQ Options', '미국', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=stocks', 'NASDAQ Stocks', '국제', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=artificial-intelligence', 'NASDAQ AI', '국제', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=blockchain', 'NASDAQ Chain', '국제', 'tm'),
+    ('https://www.nasdaq.com/feed/rssoutbound?category=corporate-governance', 'NASDAQ Gov', '국제', 'tm'),
+    ('https://www.nasdaq.com/feed/nasdaq-original/rss.xml', 'NASDAQ Original', '국제', 'tm'),
     # ── 글로벌 기업 IR / 실적
 ]
 
@@ -1317,7 +1357,7 @@ def score_news(item):
     return s
 
 kr_news.sort(key=score_news, reverse=True)
-kr_news = kr_news[:10]
+kr_news = kr_news[:20]
 print(f'  국내뉴스: {len(kr_news)}건 (키워드 가중치 적용)')
 
 # 해외뉴스 — 관련도 점수 정렬 (병렬 수집 완료 후)
@@ -1343,7 +1383,7 @@ def score_gl(item):
 
 
 gl_news.sort(key=score_gl, reverse=True)
-gl_news = gl_news[:10]
+gl_news = gl_news[:20]
 print(f'  해외뉴스: {len(gl_news)}건 (관련도+최신 정렬)')
 
 # 해외뉴스 제목 한글 번역 (Haiku)# ─────────────────────────────────────────
@@ -1734,7 +1774,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
         )
         parts = re.split(r'###\s*', t)
         full_html = ''
-        SECTION_ICONS = {'BIAS':'🔍','FORECAST':'📈','PICKS':'🎯','RISK':'⚠️'}
+        SECTION_ICONS = {'BIAS':'','FORECAST':'','PICKS':'','RISK':''}
         SECTION_LABELS = {'BIAS':'BIAS – 뉴스 편향/오류 분석','FORECAST':'FORECAST – 시장 전망','PICKS':'PICKS – 추천 종목','RISK':'RISK – 핵심 리스크 경고'}
         for p in parts:
             if not p.strip(): continue
@@ -1803,8 +1843,14 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
                 else:
                     paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
                     body_html = ''.join(f'<p>{HE(pp)}</p>' for pp in paras) if paras else HE(body)
-            elif hkey == 'FORECAST' and '•' in body:
-                result = bullet_to_html(body)
+            elif hkey == 'PICKS' and re.search(r'^\d+\.', body, re.MULTILINE):
+                # PICKS 번호 형식 (테이블 없을 때)
+                result = numbered_to_html(body)
+                body_html = result if result else HE_BR(body)
+            elif hkey == 'FORECAST' and (re.search(r'^[•·\-]\s', body, re.MULTILINE)):
+                # FORECAST: • 또는 - 불릿 모두 처리
+                body_norm = re.sub(r'^-\s', '• ', body, flags=re.MULTILINE)
+                result = bullet_to_html(body_norm)
                 body_html = result if result else HE_BR(body)
             elif hkey == 'RISK' and re.search(r'^\d+\.', body, re.MULTILINE):
                 result = numbered_to_html(body)
@@ -1827,7 +1873,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
                 body_html = ''.join(f'<p>{HE(pp)}</p>' for pp in paras) if paras else HE(body)
             section_html = (
                 f'<div class="ai-section">'
-                f'<h3>{icon} {HE(label)}</h3>'
+                f'<h3>{(icon + " ") if icon else ""}{HE(label)}</h3>'
                 f'<div class="ai-body">{body_html}</div>'
                 f'</div>\n'
             )
@@ -2087,7 +2133,7 @@ if ANTHROPIC_KEY or GROQ_KEY:
         return cache
 
     if (ANTHROPIC_KEY or GROQ_KEY) and AI_HOURLY:
-        print('\n[뉴스/공시 요약] 10건 전체 처리 (Haiku 고속)...')
+        print('\n[뉴스/공시 요약] 20건 전체 처리 (Haiku 고속)...')
     # 기존 캐시에서 ### 마크다운이 남아있는 항목 제거 (재생성 대상)
     def clean_cache(cache):
         return {k: v for k, v in cache.items() if '###' not in v.get('html','') and '##' not in v.get('html','')}
@@ -2099,9 +2145,9 @@ if ANTHROPIC_KEY or GROQ_KEY:
     # 해외뉴스 제목 한글 번역 (매 실행, 캐시 재사용)
     translate_titles(gl_news, title_trans)
     kr_news_summaries = summarize_news(kr_news, kr_news_summaries, '국내뉴스',
-        '한국 금융/경제 뉴스 전문 기자. 한국어. 음슴체(~임,~함,~됨). 존댓말 금지. 마크다운 헤더 절대 금지. 배경/핵심/시장영향/투자시사점 4단락 완성.', max_new=10)
+        '한국 금융/경제 뉴스 전문 기자. 한국어. 음슴체(~임,~함,~됨). 존댓말 금지. 마크다운 헤더 절대 금지. 배경/핵심/시장영향/투자시사점 4단락 완성.', max_new=20)
     gl_news_summaries = summarize_news(gl_news, gl_news_summaries, '해외뉴스',
-        '글로벌 금융/경제 뉴스 전문 기자. 한국어. 음슴체(~임,~함,~됨). 존댓말 금지. 마크다운 헤더 절대 금지. 배경/핵심/시장영향/투자시사점 4단락 완성.', max_new=10)
+        '글로벌 금융/경제 뉴스 전문 기자. 한국어. 음슴체(~임,~함,~됨). 존댓말 금지. 마크다운 헤더 절대 금지. 배경/핵심/시장영향/투자시사점 4단락 완성.', max_new=20)
     dart_summaries    = summarize_dart(dart_items, dart_summaries, max_new=10)
 
 # ─────────────────────────────────────────
@@ -2412,12 +2458,37 @@ if STOCK_MODE and (ANTHROPIC_KEY or GROQ_KEY):
                 f"7. 종합 의견 (2~3줄 요약)",
                 2000
             )
-            # 마크다운 → HTML 변환
+            # 마크다운 → 구조화 HTML 변환
             t = t.replace('**', '').replace('*', '')
-            t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
-            t = re.sub(r'^(\d+\. .+)', r'<strong style="color:var(--blue)">\1</strong>', t, flags=re.MULTILINE)
-            t = re.sub(r'^   - ', '  └ ', t, flags=re.MULTILINE)
-            stock_analysis[s['name']] = {'html': HE(t), 'ts': TS_SHORT}
+
+            # 마크다운 테이블 → HTML table
+            def _tbl(m):
+                lines = [l.strip() for l in m.group(0).strip().split('\n') if l.strip()]
+                rows = [l for l in lines if not re.match(r'^\|[-| ]+\|$', l)]
+                if len(rows) < 2: return m.group(0)
+                ht = '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px">'
+                for i, row in enumerate(rows):
+                    cells = [c.strip() for c in row.strip('|').split('|')]
+                    tag = 'th' if i == 0 else 'td'
+                    style = 'background:var(--bg2);color:var(--blue);font-weight:600;padding:5px 8px;border:1px solid var(--bd)' if i == 0 else 'padding:5px 8px;border:1px solid var(--bd);color:var(--txt2)'
+                    ht += '<tr>' + ''.join(f'<{tag} style="{style}">{cell}</{tag}>' for cell in cells) + '</tr>'
+                return ht + '</table>'
+            t = re.sub(r'(\|[^\n]+\n)+', _tbl, t)
+
+            # 번호 헤더 (1. 2. 3. ...) → 섹션 구분
+            t = re.sub(
+                r'^(\d+)\.\s+(.+)$',
+                r'<div style="margin:14px 0 6px;padding:6px 0;border-bottom:1px solid var(--bd);color:var(--blue);font-weight:700;font-size:13px">\1. \2</div>',
+                t, flags=re.MULTILINE
+            )
+            # 불릿 처리 (• / - )
+            t = re.sub(r'^[•·]\s*(.+)$', r'<div style="padding:3px 0 3px 12px;color:var(--txt2)">• \1</div>', t, flags=re.MULTILINE)
+            t = re.sub(r'^-\s+(.+)$',    r'<div style="padding:2px 0 2px 20px;color:var(--txt3);font-size:12px">– \1</div>', t, flags=re.MULTILINE)
+            # 나머지 줄바꿈 → <br> (빈 줄은 간격)
+            t = re.sub(r'\n\n+', '<div style="height:6px"></div>', t)
+            t = t.replace('\n', '')
+
+            stock_analysis[s['name']] = {'html': t, 'ts': TS_SHORT}
             print(f"  OK  {s['name']}")
             time.sleep(0.5)
         except Exception as e:
