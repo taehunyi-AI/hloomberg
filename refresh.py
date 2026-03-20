@@ -1791,26 +1791,41 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
             body = body.replace('**','').replace('*','')
 
             def md_table_to_html(text):
-                """마크다운 테이블 → HTML table 변환"""
+                """마크다운 테이블 → HTML table 변환 (raw HTML, escape 없음)"""
                 lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
                 rows = [l for l in lines if l.startswith('|') and not re.match(r'^\|[-| ]+\|$', l)]
                 if len(rows) < 2: return None
-                html_t = '<table>'
+                th_style = 'background:var(--bg2);color:var(--blue);font-weight:600;padding:6px 10px;text-align:left;border:1px solid var(--bd);font-size:13px'
+                td_style = 'padding:6px 10px;border:1px solid var(--bd);color:var(--txt2);font-size:13px;vertical-align:top'
+                html_t = '<table style="width:100%;border-collapse:collapse;margin:8px 0">'
                 for i, row in enumerate(rows):
                     cells = [c.strip() for c in row.strip('|').split('|')]
                     tag = 'th' if i == 0 else 'td'
-                    html_t += '<tr>' + ''.join(f'<{tag}>{HE(c)}</{tag}>' for c in cells) + '</tr>'
+                    style = th_style if i == 0 else td_style
+                    html_t += '<tr>' + ''.join(f'<{tag} style="{style}">{c}</{tag}>' for c in cells) + '</tr>'
                 return html_t + '</table>'
 
             def numbered_to_html(text):
-                """1. 2. 3. 숫자 리스트 → 단락 구분 div"""
+                """1. 2. 3. 숫자 리스트 → ai-item div (raw HTML, escape 금지)"""
                 parts = re.split(r'(?=\n?\d+\.\s)', '\n' + text.strip())
                 items = [p.strip() for p in parts if p.strip()]
                 if len(items) < 2: return None
                 out = ''
                 for item in items:
-                    item = re.sub(r'^(\d+)\.\s*', r'<strong style="color:var(--blue)">\1.</strong> ', item)
-                    out += f'<div class="ai-item">{HE_BR(item)}</div>'
+                    m2 = re.match(r'^(\d+)\.\s*(.*)', item, re.DOTALL)
+                    if m2:
+                        num  = m2.group(1)
+                        body = m2.group(2)
+                        # 하위 불릿 - → 들여쓰기
+                        body = re.sub(r'\n-\s+', '<br><span style="padding-left:12px;color:var(--txt3)">– ', body)
+                        body = re.sub(r'(<span[^>]+>– [^<]+)', r'\1</span>', body)
+                        # 줄바꿈 → <br>
+                        body = body.replace('\n', '<br>')
+                        out += (f'<div class="ai-item">'
+                                f'<strong style="color:var(--blue)">{num}.</strong> {body}'
+                                f'</div>')
+                    else:
+                        out += f'<div class="ai-item">{item.replace(chr(10), "<br>")}</div>'
                 return out
 
             def bullet_to_html(text):
