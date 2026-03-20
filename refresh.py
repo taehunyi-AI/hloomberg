@@ -6,6 +6,7 @@ GitHub Actions에서 5분마다 실행
 패치: hloomberg.html 마커 치환
 """
 import os, json, re, time, html as htmlmod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from xml.etree import ElementTree as ET
 
@@ -268,7 +269,7 @@ def fetch_kis_index(market_code, token):
         c = float(d.get('bstp_nmix_prdy_ctrt', 0) or 0)  # 전일대비율
         if p > 0:
             return {'p': p, 'c': c, 'src': 'KIS'}
-    except Exception as e:
+    except Exception:
         pass
     return None
 
@@ -411,9 +412,8 @@ def fetch_volume_rank(token):
 
 def fetch_kis_ohlcv(code, token, days=90):
     """4순위: KIS 국내주식 기간별시세 (일봉 OHLCV)"""
-    from datetime import datetime, timedelta
-    end   = datetime.now().strftime('%Y%m%d')
-    start = (datetime.now() - timedelta(days=days+30)).strftime('%Y%m%d')
+    end   = NOW.strftime('%Y%m%d')
+    start = (NOW - timedelta(days=days+30)).strftime('%Y%m%d')
     j = kis_get(
         '/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice',
         'FHKST03010100',
@@ -561,11 +561,11 @@ def get_price(key, sym):
 
 kis_token = None
 if KIS_APP_KEY and KIS_APP_SECRET:
-    print(f'\n[KIS] 토큰 확인...')
+    print('\n[KIS] 토큰 확인...')
     kis_token = kis_get_token()
 
 if kis_token:
-    print(f'[KIS] 국내 시세 수집...')
+    print('[KIS] 국내 시세 수집...')
     # KOSPI 지수
     r = fetch_kis_index('0001', kis_token)
     if r:
@@ -586,32 +586,27 @@ if kis_token:
         '008730': 'KIS_008730', '036460': 'KIS_036460',
         '207940': 'KIS_207940',
     }
-    for code, key in stock_code_map.items():
-        r = fetch_kis_price(code, kis_token)
-        if r:
-            kis_stock_data[code] = r
-            print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
-        time.sleep(0.05)
+    def _kis_price(code):
+        return code, fetch_kis_price(code, kis_token)
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        for code, r in ex.map(lambda c: _kis_price(c), stock_code_map.keys()):
+            if r:
+                kis_stock_data[code] = r
+                print(f"  OK  {code}  {r['p']:>10.0f}원  ({'+' if r['c']>=0 else ''}{r['c']:.2f}%)  [KIS]")
     print(f'  KIS 완료: 지수 + {len(kis_stock_data)}개 종목')
 
-    # ── 1순위: 외국인/기관 순매수 TOP10
-    print('[KIS 수급] 외국인/기관 순매수 수집...')
-    foreign_buy  = fetch_foreign_institution(kis_token, '0001', '1')   # 코스피 외국인
-    institution_buy = fetch_foreign_institution(kis_token, '0001', '2') # 코스피 기관
-    print(f'  외국인 순매수: {len(foreign_buy)}개 / 기관 순매수: {len(institution_buy)}개')
-    time.sleep(0.3)
-
-    # ── 2순위: 등락률 상위
-    print('[KIS 순위] 등락률 상위 수집...')
-    fluctuation_rank = fetch_fluctuation_rank(kis_token)
-    print(f'  등락률 상위: {len(fluctuation_rank)}개')
-    time.sleep(0.3)
-
-    # ── 3순위: 거래량 상위
-    print('[KIS 순위] 거래량 상위 수집...')
-    volume_rank_data = fetch_volume_rank(kis_token)
-    print(f'  거래량 상위: {len(volume_rank_data)}개')
-    time.sleep(0.3)
+    # ── 수급/순위 3개 병렬 수집
+    print('[KIS 수급/순위] 외국인·기관·등락률·거래량 병렬 수집...')
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_fb  = ex.submit(fetch_foreign_institution, kis_token, '0001', '1')
+        f_ib  = ex.submit(fetch_foreign_institution, kis_token, '0001', '2')
+        f_flr = ex.submit(fetch_fluctuation_rank, kis_token)
+        f_vol = ex.submit(fetch_volume_rank, kis_token)
+        foreign_buy     = f_fb.result()
+        institution_buy = f_ib.result()
+        fluctuation_rank = f_flr.result()
+        volume_rank_data = f_vol.result()
+    print(f'  외국인:{len(foreign_buy)} 기관:{len(institution_buy)} 등락률:{len(fluctuation_rank)} 거래량:{len(volume_rank_data)}')
 
 else:
     if KIS_APP_KEY:
@@ -621,20 +616,22 @@ else:
     foreign_buy = []; institution_buy = []; fluctuation_rank = []; volume_rank_data = []
 
 
-print(f'\n[시세] {len(TICKERS)}개 수집...')
-# KIS가 이미 수집한 지수(KOSPI/KOSDAQ)는 Yahoo로 덮어쓰지 않음
-for name, sym in TICKERS.items():
-    if name in PRICE_DATA:   # KIS 데이터 있으면 스킵
-        print(f"  SKIP {name:<10} (KIS 수집 완료)")
-        continue
-    res = get_price(name, sym)
-    if res:
-        PRICE_DATA[name] = res
-        sg = '+' if res['c'] >= 0 else ''
-        print(f"  OK  {name:<10} {res['p']:>12.2f}  ({sg}{res['c']:.2f}%)  [{res['src']}]")
-    else:
-        print(f"  FAIL {name}")
-    time.sleep(0.1)
+print(f'\n[시세] {len(TICKERS)}개 병렬 수집...')
+need = {n: s for n, s in TICKERS.items() if n not in PRICE_DATA}
+for n in TICKERS:
+    if n not in need:
+        print(f"  SKIP {n:<10} (KIS 수집 완료)")
+def _get_price(args):
+    name, sym = args
+    return name, get_price(name, sym)
+with ThreadPoolExecutor(max_workers=8) as ex:
+    for name, res in ex.map(_get_price, need.items()):
+        if res:
+            PRICE_DATA[name] = res
+            sg = '+' if res['c'] >= 0 else ''
+            print(f"  OK  {name:<10} {res['p']:>12.2f}  ({sg}{res['c']:.2f}%)  [{res['src']}]")
+        else:
+            print(f"  FAIL {name}")
 print(f'  → {len(PRICE_DATA)}/{len(TICKERS)} 수신')
 
 def fmt_price(v, key):
@@ -653,7 +650,6 @@ def make_ticks_js():
         sg = '+' if c >= 0 else ''
         cl = 'up' if c >= 0 else 'dn'
         cv = f'{sg}{abs(c):.2f}%'
-        src_badge = ' [KIS]' if d.get('src') == 'KIS' else ''
         lines.append(f"  {{k:'{k}',l:'{meta['l']}',v:'{meta['u']}{p}',c:'{cv}',cl:'{cl}'}},")
     lines.append('];')
     return '\n'.join(lines)
@@ -706,21 +702,6 @@ def make_supply_demand_js(foreign_buy, institution_buy, fluctuation_rank, volume
     return '\n' + '\n'.join(lines) + '\n'
 
 
-# KIS 담당 종목 (KOSPI/KOSDAQ 지수 + 국내 스윙종목)
-KIS_STOCK_CODES = {
-    'KOSPI':    ('U', 'FID_COND_MRKT_DIV_CODE', '0001'),  # 지수 특수처리
-    'KOSDAQ':   ('U', 'FID_COND_MRKT_DIV_CODE', '1001'),
-    '005930':   'SAMSUNG',    # 삼성전자
-    '000660':   'SKHYNIX',    # SK하이닉스
-    '012450':   'HANWHA_AE',  # 한화에어로
-    '079550':   'LIG',        # LIG넥스원
-    '015760':   'KEPCO',      # 한국전력
-    '010950':   'SOIL',       # S-Oil
-    '008730':   'KARBON',     # 한국카본
-    '036460':   'KOGAS',      # 한국가스공사
-    '207940':   'SAMSUNGBIO', # 삼성바이오
-}
-
 def fetch_chart_data(sym, days=90):
     for q in ('query1', 'query2'):
         try:
@@ -739,15 +720,17 @@ def fetch_chart_data(sym, days=90):
         except: pass
     return []
 
-print('\n[원자재 차트] 90일 데이터 수집...')
-for key, sym in CMDTY_CHART_SYMS.items():
-    pts = fetch_chart_data(sym, 90)
-    if pts:
-        cmdty_chart[key] = pts
-        print(f'  OK  {key}: {len(pts)}일')
-    else:
-        print(f'  FAIL {key}')
-    time.sleep(0.1)
+print('\n[원자재 차트] 90일 데이터 병렬 수집...')
+def _fetch_cmdty(args):
+    key, sym = args
+    return key, fetch_chart_data(sym, 90)
+with ThreadPoolExecutor(max_workers=6) as ex:
+    for key, pts in ex.map(_fetch_cmdty, CMDTY_CHART_SYMS.items()):
+        if pts:
+            cmdty_chart[key] = pts
+            print(f'  OK  {key}: {len(pts)}일')
+        else:
+            print(f'  FAIL {key}')
 
 # ─────────────────────────────────────────
 # 종목 OHLCV + 기술지표
@@ -812,24 +795,22 @@ def fetch_ohlcv(sym, days=90):
         except: pass
     return None
 
-print('\n[종목차트] OHLCV + 기술지표 수집...')
-for name, ticker in STOCK_TICKERS.items():
-    data = None
-    # 4순위: KIS 우선, fallback Yahoo
+print('\n[종목차트] OHLCV + 기술지표 병렬 수집...')
+def _fetch_ohlcv(args):
+    name, ticker = args
     code = ticker.split('.')[0]
     if kis_token:
-        data = fetch_kis_ohlcv(code, kis_token, 90)
+        d = fetch_kis_ohlcv(code, kis_token, 90)
+        if d: return name, d, 'KIS'
+    d = fetch_ohlcv(ticker, 90)
+    return name, d, 'Yahoo'
+with ThreadPoolExecutor(max_workers=5) as ex:
+    for name, data, src in ex.map(_fetch_ohlcv, STOCK_TICKERS.items()):
         if data:
-            print(f'  OK  {name}: {len(data)}일  [KIS]')
-    if not data:
-        data = fetch_ohlcv(ticker, 90)
-        if data:
-            print(f'  OK  {name}: {len(data)}일  [Yahoo]')
+            stock_charts[name] = data
+            print(f'  OK  {name}: {len(data)}일  [{src}]')
         else:
             print(f'  FAIL {name}')
-    if data:
-        stock_charts[name] = data
-    time.sleep(0.15)
 
 # ─────────────────────────────────────────
 # FRED API — 미국 경제지표
@@ -873,21 +854,23 @@ def fetch_fred(series_id, limit=2, yoy=False):
     except: return None
 
 print('\n[FRED] 미국 경제지표 수집...')
-for key, meta in FRED_SERIES.items():
-    vals = fetch_fred(meta['id'], yoy=meta.get('yoy', False))
-    if vals:
-        latest = vals[0]
-        prev   = vals[1] if len(vals) > 1 else None
-        chg    = round(latest[1] - prev[1], 2) if prev else 0
-        fred_data[key] = {
-            'name': meta['name'], 'unit': meta['unit'],
-            'val':  round(latest[1], 2), 'date': latest[0],
-            'chg':  chg, 'prev': round(prev[1], 2) if prev else None
-        }
-        print(f'  OK  {key}: {latest[1]}{meta["unit"]} ({latest[0]})')
-    else:
-        print(f'  SKIP {key} (키 없음)')
-    time.sleep(0.1)
+def _fetch_fred(args):
+    key, meta = args
+    return key, meta, fetch_fred(meta['id'], yoy=meta.get('yoy', False))
+with ThreadPoolExecutor(max_workers=6) as ex:
+    for key, meta, vals in ex.map(_fetch_fred, FRED_SERIES.items()):
+        if vals:
+            latest = vals[0]
+            prev   = vals[1] if len(vals) > 1 else None
+            chg    = round(latest[1] - prev[1], 2) if prev else 0
+            fred_data[key] = {
+                'name': meta['name'], 'unit': meta['unit'],
+                'val':  round(latest[1], 2), 'date': latest[0],
+                'chg':  chg, 'prev': round(prev[1], 2) if prev else None
+            }
+            print(f'  OK  {key}: {latest[1]}{meta["unit"]} ({latest[0]})')
+        else:
+            print(f'  SKIP {key} (키 없음)')
 
 # ─────────────────────────────────────────
 # 한국은행 OpenAPI — 한국 경제지표
@@ -937,27 +920,27 @@ def fetch_bok(stat_code, item_code, cycle='M'):
 
 print('\n[BOK] 한국 경제지표 수집...')
 bok_blocked = False
-for key, meta in BOK_SERIES.items():
-    if bok_blocked:
-        print(f'  SKIP {key} (네트워크 차단)')
-        continue
-    vals = fetch_bok(meta['stat'], meta['item'], meta.get('cycle','M'))
-    if vals == 'BLOCKED':
-        bok_blocked = True
-        print(f'  SKIP {key} (ecos.bok.or.kr 네트워크 차단 — GitHub Actions IP 제한)')
-    elif vals:
-        latest = vals[0]
-        prev   = vals[1] if len(vals) > 1 else None
-        chg    = round(latest[1] - prev[1], 2) if prev else 0
-        bok_data[key] = {
-            'name': meta['name'], 'unit': meta['unit'],
-            'val':  round(latest[1], 2), 'date': latest[0],
-            'chg':  chg, 'prev': round(prev[1], 2) if prev else None
-        }
-        print(f'  OK  {key}: {latest[1]}{meta["unit"]} ({latest[0]})')
-    else:
-        print(f'  SKIP {key} (데이터 없음)')
-    time.sleep(0.1)
+def _fetch_bok(args):
+    key, meta = args
+    return key, meta, fetch_bok(meta['stat'], meta['item'], meta.get('cycle','M'))
+with ThreadPoolExecutor(max_workers=4) as ex:
+    futs = {ex.submit(_fetch_bok, item): item for item in BOK_SERIES.items()}
+    for fut in as_completed(futs):
+        key, meta, vals = fut.result()
+        if vals == 'BLOCKED':
+            print(f'  SKIP {key} (ecos.bok.or.kr 네트워크 차단)')
+        elif vals:
+            latest = vals[0]
+            prev   = vals[1] if len(vals) > 1 else None
+            chg    = round(latest[1] - prev[1], 2) if prev else 0
+            bok_data[key] = {
+                'name': meta['name'], 'unit': meta['unit'],
+                'val':  round(latest[1], 2), 'date': latest[0],
+                'chg':  chg, 'prev': round(prev[1], 2) if prev else None
+            }
+            print(f'  OK  {key}: {latest[1]}{meta["unit"]} ({latest[0]})')
+        else:
+            print(f'  SKIP {key} (데이터 없음)')
 
 # ─────────────────────────────────────────
 # 섹터 히트맵 — 섹터 ETF 시세
@@ -992,14 +975,16 @@ def fetch_sector_price(sym):
     return None
 
 print('\n[섹터] 히트맵 데이터 수집...')
-for sector, meta in SECTOR_ETFS.items():
-    d = fetch_sector_price(meta['sym'])
-    if d:
-        sector_data[sector] = {**d, 'etf': meta['etf']}
-        print(f'  OK  {sector}: {d["price"]} ({d["chg"]:+.2f}%)')
-    else:
-        print(f'  FAIL {sector}')
-    time.sleep(0.1)
+def _fetch_sector(args):
+    sector, meta = args
+    return sector, meta, fetch_sector_price(meta['sym'])
+with ThreadPoolExecutor(max_workers=6) as ex:
+    for sector, meta, d in ex.map(_fetch_sector, SECTOR_ETFS.items()):
+        if d:
+            sector_data[sector] = {**d, 'etf': meta['etf']}
+            print(f'  OK  {sector}: {d["price"]} ({d["chg"]:+.2f}%)')
+        else:
+            print(f'  FAIL {sector}')
 
 # ─────────────────────────────────────────
 # 2. 뉴스 수집
@@ -1192,37 +1177,49 @@ def fetch_daum_news():
     """다음 금융 뉴스 — API 불안정으로 Google News 대체"""
     return []  # GL_GNEWS/KR_GNEWS로 커버
 
-print(f'\n[뉴스] 수집 시작...')
+print('\n[뉴스] 병렬 수집 시작...')
 
-# 국내뉴스
-kr_news = []
-seen_kr = set()
-# RSS
-for url, src, tc in KR_RSS:
-    items = parse_rss(url, src, '한국', tc, 4)
-    for it in items:
-        if not is_relevant(it['title']): continue
-        k = it['title'][:20]
-        if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
-    time.sleep(0.05)
-# Google News
-for q, tc in KR_GNEWS:
-    items = fetch_gnews(q, '한국', tc, 'ko', 'KR', 5)
-    for it in items:
-        if not is_relevant(it['title']): continue
-        k = it['title'][:20]
-        if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
-    time.sleep(0.05)
-# 네이버
-for it in fetch_naver_news():
+# ── 국내·해외 뉴스 동시 수집
+def _fetch_kr_rss(args):
+    url, src, tc = args
+    return parse_rss(url, src, '한국', tc, 4)
+def _fetch_kr_gnews(args):
+    q, tc = args
+    return fetch_gnews(q, '한국', tc, 'ko', 'KR', 5)
+def _fetch_gl_rss(args):
+    url, src, tag, tc = args
+    return parse_rss(url, src, tag, tc, 3)
+def _fetch_gl_gnews(args):
+    q, tag, tc = args
+    return fetch_gnews(q, tag, tc, 'en', 'US', 5)
+
+kr_raw, gl_raw = [], []
+with ThreadPoolExecutor(max_workers=12) as ex:
+    f_kr_rss   = [ex.submit(_fetch_kr_rss,   a) for a in KR_RSS]
+    f_kr_gn    = [ex.submit(_fetch_kr_gnews, a) for a in KR_GNEWS]
+    f_kr_naver = ex.submit(fetch_naver_news)
+    f_kr_daum  = ex.submit(fetch_daum_news)
+    f_gl_rss   = [ex.submit(_fetch_gl_rss,   a) for a in GL_RSS]
+    f_gl_gn    = [ex.submit(_fetch_gl_gnews, a) for a in GL_GNEWS]
+    for f in f_kr_rss + f_kr_gn:
+        kr_raw.extend(f.result())
+    kr_raw.extend(f_kr_naver.result())
+    kr_raw.extend(f_kr_daum.result())
+    for f in f_gl_rss + f_gl_gn:
+        gl_raw.extend(f.result())
+
+# 중복 제거
+kr_news, seen_kr = [], set()
+for it in kr_raw:
     if not is_relevant(it['title']): continue
     k = it['title'][:20]
     if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
-# 다음
-for it in fetch_daum_news():
+
+gl_news, seen_gl = [], set()
+for it in gl_raw:
     if not is_relevant(it['title']): continue
     k = it['title'][:20]
-    if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
+    if k not in seen_gl: seen_gl.add(k); gl_news.append(it)
 
 # ─────────────────────────────────────────
 # 키워드 가중치 선별
@@ -1279,20 +1276,7 @@ def score_gl(item):
                 break
     return s
 
-for url, src, tag, tc in GL_RSS:
-    items = parse_rss(url, src, tag, tc, 3)
-    for it in items:
-        if not is_relevant(it['title']): continue
-        k = it['title'][:20]
-        if k not in seen_gl: seen_gl.add(k); gl_news.append(it)
-    time.sleep(0.05)
-for q, tag, tc in GL_GNEWS:
-    items = fetch_gnews(q, tag, tc, 'en', 'US', 5)
-    for it in items:
-        if not is_relevant(it['title']): continue
-        k = it['title'][:20]
-        if k not in seen_gl: seen_gl.add(k); gl_news.append(it)
-    time.sleep(0.05)
+
 
 gl_news.sort(key=score_gl, reverse=True)
 gl_news = gl_news[:10]
@@ -1301,7 +1285,7 @@ print(f'  해외뉴스: {len(gl_news)}건 (관련도+최신 정렬)')
 # 해외뉴스 제목 한글 번역 (Haiku)# ─────────────────────────────────────────
 # 3. DART 공시 수집
 # ─────────────────────────────────────────
-print(f'\n[공시] DART 수집...')
+print('\n[공시] DART 수집...')
 dart_items = []
 
 def fetch_dart_list():
@@ -1358,7 +1342,59 @@ def fetch_krx_kind():
         print(f'  KIND RSS fail: {e}')
         return []
 
-dart_items = fetch_dart_list() if DART_KEY else []
+def fetch_naver_research():
+    """네이버 금융 리서치 - 기업분석 + 투자전략 리포트
+    company_list: 종목명 | 제목 | 증권사 | 목표주가 | 날짜  (5열)
+    invest_list:  분류   | 제목 | 증권사 | 날짜           (4열)
+    """
+    pages = [
+        ('https://finance.naver.com/research/company_list.naver', 'company'),
+        ('https://finance.naver.com/research/invest_list.naver',  'invest'),
+    ]
+    out = []
+    for url, ptype in pages:
+        r = safe_get(url, referer='https://finance.naver.com')
+        if not r: continue
+        try:
+            soup = BeautifulSoup(r.content, 'html.parser')
+            rows = soup.select('table.type_1 tr, table.tbl_type tr')
+            for row in rows[:25]:
+                tds = row.select('td')
+                if len(tds) < 3: continue
+                title_a = tds[1].select_one('a') if len(tds) > 1 else None
+                if not title_a: continue
+                title = title_a.get_text(strip=True)
+                if not title or len(title) <= 3: continue
+                href  = title_a.get('href', '')
+                if href.startswith('/'): href = 'https://finance.naver.com' + href
+                stock  = tds[0].get_text(strip=True)
+                firm   = tds[2].get_text(strip=True) if len(tds) > 2 else ''
+                # 목표주가: company_list는 td[3], invest_list는 없음
+                target = ''
+                if ptype == 'company' and len(tds) >= 5:
+                    raw = tds[3].get_text(strip=True).replace(',', '').replace('원', '').strip()
+                    if raw.isdigit(): target = raw + '원'
+                date = tds[4].get_text(strip=True) if ptype == 'company' and len(tds) >= 5                        else tds[-1].get_text(strip=True)
+                out.append({
+                    'title':  title,
+                    'stock':  stock,
+                    'firm':   parse_firm(firm),
+                    'target': target,   # 목표주가 (기업분석만, 투자전략은 '')
+                    'date':   date,
+                    'link':   href,
+                })
+        except Exception as e:
+            print(f'  Research parse fail {url}: {e}')
+        time.sleep(0.2)
+    return out[:30]
+
+
+# DART + 리서치 병렬 수집
+with ThreadPoolExecutor(max_workers=2) as ex:
+    f_dart     = ex.submit(lambda: fetch_dart_list() if DART_KEY else [])
+    f_research = ex.submit(fetch_naver_research)
+    dart_items     = f_dart.result()
+    _research_raw  = f_research.result()
 if not dart_items:
     if not DART_KEY:
         print('  DART_API_KEY 없음 — KIND RSS fallback')
@@ -1379,11 +1415,11 @@ print(f'  공시: {len(dart_items)}건 (키워드 가중치 적용)')
 # ─────────────────────────────────────────
 # 4. 리서치 리포트 수집 (네이버 금융 통합)
 # ─────────────────────────────────────────
-print(f'\n[리서치] 네이버 금융 리서치 수집...')
+print('\n[리서치] 네이버 금융 리서치 수집 (DART와 병렬)...')
 research_items = []
 
 FIRM_MAP = {
-    '삼성': '삼성증권', '미래에셋': '미래에셋', '키움': '키움증권',
+    '삼성': '삼성증권', '미래에셋': '미래에셋증권', '키움': '키움증권',
     '한국투자': '한국투자증권', '한투': '한국투자증권',
     '신한': '신한투자증권', '대신': '대신증권',
     'NH': 'NH투자증권', 'KB': 'KB증권', '하나': '하나증권',
@@ -1396,52 +1432,13 @@ def parse_firm(name):
         if k in name: return v
     return name[:10] if name else '증권사'
 
-def fetch_naver_research():
-    """네이버 금융 리서치 - 기업분석 리포트"""
-    pages = [
-        'https://finance.naver.com/research/company_list.naver',
-        'https://finance.naver.com/research/invest_list.naver',
-    ]
-    out = []
-    for url in pages:
-        r = safe_get(url, referer='https://finance.naver.com')
-        if not r: continue
-        try:
-            soup = BeautifulSoup(r.content, 'html.parser')
-            rows = soup.select('table.type_1 tr, table.tbl_type tr')
-            for row in rows[:25]:
-                tds = row.select('td')
-                if len(tds) < 3: continue
-                # 종목명, 리포트제목, 증권사, 날짜
-                title_td = tds[1] if len(tds) > 2 else tds[0]
-                title_a  = title_td.select_one('a')
-                if not title_a: continue
-                title = title_a.get_text(strip=True)
-                href  = title_a.get('href','')
-                if href.startswith('/'): href = 'https://finance.naver.com' + href
-                stock = tds[0].get_text(strip=True) if tds else ''
-                firm  = tds[2].get_text(strip=True) if len(tds)>2 else ''
-                date  = tds[-1].get_text(strip=True) if tds else ''
-                if title and len(title) > 3:
-                    out.append({
-                        'title': title,
-                        'stock': stock,
-                        'firm':  parse_firm(firm),
-                        'date':  date,
-                        'link':  href,
-                    })
-        except Exception as e:
-            print(f'  Research parse fail {url}: {e}')
-        time.sleep(0.2)
-    return out[:30]
-
-research_items = fetch_naver_research()
+research_items = _research_raw
 print(f'  리서치: {len(research_items)}건')
 
 # ─────────────────────────────────────────
 # 5. Claude AI 분석
 # ─────────────────────────────────────────
-print(f'\n[AI] Claude 분석...')
+print('\n[AI] Claude 분석...')
 ai_sections = {'full': '', 'bias': '', 'forecast': '', 'picks': '', 'risk': ''}
 ai_ts = ''
 global_issues = []
@@ -1604,7 +1601,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
     # 공시 요약
     dart_str = '\n'.join([f"{d['corp']}: {d['title']}" for d in dart_items[:10]]) or '없음'
     # 리서치 요약
-    research_str = '\n'.join([f"{r['firm']} - {r['title']}({r['stock']})" for r in research_items[:10]]) or '없음'
+    research_str = '\n'.join([f"{r['firm']} - {r['title']}({r['stock']}){' TP:'+r['target'] if r.get('target') else ''}" for r in research_items[:10]]) or '없음'
 
     combined_prompt = (
         f'[분석기준] {ANALYSIS_BASE}\n\n'
@@ -1906,7 +1903,7 @@ if ANTHROPIC_KEY or GROQ_KEY:
         return cache
 
     if (ANTHROPIC_KEY or GROQ_KEY) and AI_HOURLY:
-        print(f'\n[뉴스/공시 요약] 10건 전체 처리 (Haiku 고속)...')
+        print('\n[뉴스/공시 요약] 10건 전체 처리 (Haiku 고속)...')
     # 기존 캐시에서 ### 마크다운이 남아있는 항목 제거 (재생성 대상)
     def clean_cache(cache):
         return {k: v for k, v in cache.items() if '###' not in v.get('html','') and '##' not in v.get('html','')}
@@ -1991,7 +1988,7 @@ if swing_top10:
     html = patch(html, '// ##STOCKS_S##', '// ##STOCKS_E##', make_stocks_js(swing_top10))
     print(f'  STOCKS: AI TOP{len(swing_top10)} 패치 완료')
 else:
-    print(f'  STOCKS: AI 선정 실패 → 기존 유지')
+    print('  STOCKS: AI 선정 실패 → 기존 유지')
 print(f'  TICKS: {len(PRICE_DATA)}개')
 
 # ── 수급/순위 JS 패치 (1,2,3순위)
@@ -2032,9 +2029,10 @@ print(f'  DART: {len(dart_items)}건')
 def research_list_html(items):
     h = ''
     for i, d in enumerate(items):
+        target_str = f' · <span style="color:var(--yel)">{HE(d["target"])}</span>' if d.get('target') else ''
         h += (f'<div class="li" onclick="showResearch({i})" id="res-{i}">'
               f'<div class="li-tag"><span class="tag tr">리서치</span>'
-              f'<span class="li-time">{HE(d["date"])} · <span class="research-firm">{HE(d["firm"])}</span></span></div>'
+              f'<span class="li-time">{HE(d["date"])} · <span class="research-firm">{HE(d["firm"])}</span>{target_str}</span></div>'
               f'<div class="li-title">{HE(d["title"])}</div></div>')
     if not items: h = '<div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">리서치 없음</div>'
     return h
@@ -2081,7 +2079,7 @@ html = patch(html, '// ##DART_DATA_S##', '// ##DART_DATA_E##', f'\nconst DART_IT
 def research_to_js(items):
     lines = ['[']
     for d in items:
-        lines.append(f"  {{title:'{JE(d['title'])}',firm:'{JE(d['firm'])}',stock:'{JE(d.get('stock',''))}',date:'{JE(d['date'])}',link:'{JE(d.get('link',''))}'}},")
+        lines.append(f"  {{title:'{JE(d['title'])}',firm:'{JE(d['firm'])}',stock:'{JE(d.get('stock',''))}',target:'{JE(d.get('target',''))}',date:'{JE(d['date'])}',link:'{JE(d.get('link',''))}'}},")
     lines.append(']')
     return '\n'.join(lines)
 
@@ -2289,9 +2287,9 @@ html = patch(html, '// ##ECON_DATA_S##', '// ##ECON_DATA_E##', econ_js(fred_data
 
 # CMDTY_AI / SWING_QUICK 패치
 html = patch(html, '// ##CMDTY_AI_S##', '// ##CMDTY_AI_E##',
-    f'\nconst CMDTY_AI={json.dumps(cmdty_ai if "cmdty_ai" in dir() else {}, ensure_ascii=False)};\n')
+    f'\nconst CMDTY_AI={json.dumps(cmdty_ai, ensure_ascii=False)};\n')
 html = patch(html, '// ##SWING_QUICK_S##', '// ##SWING_QUICK_E##',
-    f'\nconst SWING_QUICK={json.dumps(swing_quick if "swing_quick" in dir() else {}, ensure_ascii=False)};\n')
+    f'\nconst SWING_QUICK={json.dumps(swing_quick, ensure_ascii=False)};\n')
 
 # GROQ_KEY를 HTML에 주입 (브라우저 AI 호출용)
 if GROQ_KEY:
@@ -2452,7 +2450,7 @@ if TG_BOT:
             for n in kr_news[:3]:
                 lines.append(f"  • {n['title'][:40]}")
 
-        lines.append(f'\n🔗 <a href="https://taehunyi-ai.github.io/hloomberg/hloomberg.html">HLOOMBERG 터미널</a>')
+        lines.append('\n🔗 <a href="https://taehunyi-ai.github.io/hloomberg/hloomberg.html">HLOOMBERG 터미널</a>')
 
         summary_msg = f"📊 <b>HLOOMBERG 정기요약</b> [{TS}]\n\n" + '\n'.join(lines)
         tg_send(summary_msg)
