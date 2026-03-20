@@ -1091,18 +1091,15 @@ GL_RSS = [
     ('https://www.theguardian.com/business/rss',                                            'Guardian Biz','유럽',  'te'),
     ('https://www.theguardian.com/world/rss',                                               'Guardian Wld','국제',  'te'),
     # ── Reuters (공개 RSS)
-    ('https://feeds.reuters.com/reuters/businessNews',                                      'Reuters Biz', '글로벌','te'),
-    ('https://feeds.reuters.com/reuters/worldNews',                                         'Reuters Wld', '글로벌','te'),
     # ── 중동
     ('https://www.aljazeera.com/xml/rss/all.xml',                                           'Al Jazeera',  '중동',  'tw'),
     ('https://www.middleeasteye.net/rss',                                                   'ME Eye',      '중동',  'tw'),
     ('https://www.timesofisrael.com/feed/',                                                 'ToI',         '중동',  'tw'),
     # ── 아시아
     ('https://www.scmp.com/rss/91/feed',                                                    'SCMP',        '아시아','tg'),
-    ('https://feeds.apnews.com/apnews/business',                                          'AP Business', '글로벌','tm'),
     ('https://economictimes.indiatimes.com/rssfeedstopstories.cms',                         'ET India',    '아시아','tg'),
+    ('https://ir.thomsonreuters.com/rss/news-releases.xml',                               'TR IR',       'gl',   'tm'),
     # ── 글로벌 기업 IR / 실적
-    ('https://ir.thomsonreuters.com/rss/news-releases.xml',                                  'TR IR',       '글로벌','te'),
 ]
 
 # ── 해외 Google News: 경제·국제정세 핵심 키워드
@@ -2042,7 +2039,7 @@ if ANTHROPIC_KEY or GROQ_KEY:
         new_count = 0
         sys_prompt = system_prompt + ' 마크다운 헤더(###,##,#) 절대 사용 금지. 단락 구분은 빈 줄로만. 음슴체로 작성 (~임, ~함, ~됨).'
         for n in items[:max_new]:
-            key = n.get('link','') or n['title'][:50]  # URL 우선, 없으면 제목 50자
+            key = n.get('link','') or n['title'][:30]  # URL 우선, 없으면 제목 30자
             if key in cache:
                 continue
             try:
@@ -2125,7 +2122,7 @@ with open(HTML_FILE, encoding='utf-8') as f:
 
 # ── 타임스탬프
 ts_unix = int(NOW.timestamp() * 1000)
-html = patch(html, '<!-- ##TS_S## -->', '<!-- ##TS_E## -->', f'🔄 {TS} · {len(kr_news)}국내 · {len(gl_news)}해외 · {len(dart_items)}공시')
+html = patch(html, '<!-- ##TS_S## -->', '<!-- ##TS_E## -->', '')  # 갱신바 제거
 html = re.sub(r'id="refresh-ts-bar"', f'id="refresh-ts-bar" data-ts="{ts_unix}"', html)
 html = re.sub(r'<!-- ##TS_SHORT_S## -->.*?<!-- ##TS_SHORT_E## -->', f'<!-- ##TS_SHORT_S## -->{TS_SHORT}<!-- ##TS_SHORT_E## -->', html)
 
