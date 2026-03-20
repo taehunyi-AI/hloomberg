@@ -31,7 +31,7 @@ GROQ_MODEL_MAP = {
 GROQ_ACTIVE_MODEL = 'openai/gpt-oss-120b'  # 현재 사용 모델 (HTML 표시용)
 HTML_FILE     = 'hloomberg.html'
 
-# AI_MODE: full=전체AI(KST 08:00), partial=종합+TOP10(KST 20:00), ''=없음(매 5분)
+# AI_MODE: full=전체AI (매시간 실행, 항상 full)
 AI_MODE    = os.environ.get('AI_MODE', '').strip().lower()
 
 # 최초 실행 감지: hloomberg.html에 데이터가 없으면 full 모드 강제
@@ -56,7 +56,7 @@ KST = timezone(timedelta(hours=9))
 NOW = datetime.now(KST)
 TS  = NOW.strftime('%Y-%m-%d %H:%M KST')
 TS_SHORT = NOW.strftime('%m/%d %H:%M')
-AI_HOURLY = NOW.minute < 6  # 1시간 주기 (빠른신호/뉴스요약)
+AI_HOURLY = True  # 매시간 실행 (스케줄 변경: 매 5분→매시간)
 
 # 주말 감지 (0=월 ... 6=일)
 IS_WEEKEND = NOW.weekday() >= 5  # 토(5), 일(6)
@@ -1726,16 +1726,78 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
             lines = p.strip().split('\n')
             header = lines[0].strip()
             body   = '\n'.join(lines[1:]).strip()
-            # 헤더 아이콘 및 라벨 매핑
-            hkey = header.upper().split()[0] if header else ''
+            # ** 마크다운 제거 후 헤더 키 추출
+            header_clean = re.sub(r'\*+', '', header).strip()
+            hkey = header_clean.upper().split()[0] if header_clean else ''
+            hkey = re.sub(r'[^A-Z]', '', hkey)  # 영문자만 추출
             icon  = SECTION_ICONS.get(hkey, '📋')
-            label = SECTION_LABELS.get(hkey, header)
-            # 본문 포맷팅
+            label = SECTION_LABELS.get(hkey, header_clean)
+            # 본문 포맷팅 — 섹션별 특화 렌더링
             body = body.replace('**','').replace('*','')
-            body = re.sub(r'^- ', '• ', body, flags=re.MULTILINE)
-            # 단락 구분 — 빈줄 기준으로 <p> 태그 생성
-            paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
-            body_html = ''.join(f'<p>{HE(pp)}</p>' for pp in paras) if paras else HE(body)
+
+            def md_table_to_html(text):
+                """마크다운 테이블 → HTML table 변환"""
+                lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
+                rows = [l for l in lines if l.startswith('|') and not re.match(r'^\|[-| ]+\|$', l)]
+                if len(rows) < 2: return None
+                html_t = '<table>'
+                for i, row in enumerate(rows):
+                    cells = [c.strip() for c in row.strip('|').split('|')]
+                    tag = 'th' if i == 0 else 'td'
+                    html_t += '<tr>' + ''.join(f'<{tag}>{HE(c)}</{tag}>' for c in cells) + '</tr>'
+                return html_t + '</table>'
+
+            def numbered_to_html(text):
+                """1. 2. 3. 숫자 리스트 → 단락 구분 div"""
+                parts = re.split(r'(?=\n?\d+\.\s)', '\n' + text.strip())
+                items = [p.strip() for p in parts if p.strip()]
+                if len(items) < 2: return None
+                out = ''
+                for item in items:
+                    item = re.sub(r'^(\d+)\.\s*', r'<strong style="color:var(--blue)">\1.</strong> ', item)
+                    out += f'<div class="ai-item">{HE_BR(item)}</div>'
+                return out
+
+            def bullet_to_html(text):
+                """• 불릿 항목 → 단락 구분 div"""
+                parts = re.split(r'(?=\n?[•·]\s)', '\n' + text.strip())
+                items = [p.strip() for p in parts if p.strip()]
+                if len(items) < 2: return None
+                out = ''
+                for item in items:
+                    item = re.sub(r'^[•·]\s*', '', item)
+                    # 첫 콜론까지를 제목으로 강조
+                    item = re.sub(r'^([^:：]{1,20}[:：])', r'<strong style="color:var(--txt)">\1</strong>', item)
+                    out += f'<div class="ai-bullet">{HE_BR(item)}</div>'
+                return out
+
+            # HE_BR: HTML escape + \n → <br>
+            def HE_BR(s):
+                return HE(s).replace('\n', '<br>')
+
+            # 섹션별 렌더링
+            if hkey == 'PICKS' and '|' in body:
+                # 테이블 앞 설명 텍스트 분리
+                pre_table = re.split(r'(?=\|)', body, maxsplit=1)
+                intro = pre_table[0].strip() if len(pre_table) > 1 else ''
+                table_part = pre_table[1] if len(pre_table) > 1 else body
+                table_html = md_table_to_html(table_part)
+                if table_html:
+                    intro_html = f'<p style="margin-bottom:10px">{HE(intro)}</p>' if intro else ''
+                    body_html = intro_html + table_html
+                else:
+                    paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
+                    body_html = ''.join(f'<p>{HE(pp)}</p>' for pp in paras) if paras else HE(body)
+            elif hkey == 'FORECAST' and '•' in body:
+                result = bullet_to_html(body)
+                body_html = result if result else HE_BR(body)
+            elif hkey == 'RISK' and re.search(r'^\d+\.', body, re.MULTILINE):
+                result = numbered_to_html(body)
+                body_html = result if result else HE_BR(body)
+            else:
+                body = re.sub(r'^- ', '• ', body, flags=re.MULTILINE)
+                paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
+                body_html = ''.join(f'<p>{HE(pp)}</p>' for pp in paras) if paras else HE(body)
             section_html = (
                 f'<div class="ai-section">'
                 f'<h3>{icon} {HE(label)}</h3>'
@@ -2037,7 +2099,11 @@ _ai_label = 'GROQ' if AI_PROVIDER == 'groq' else 'CLAUDE'
 html = re.sub(r'<!-- ##SERVER_AI_S## -->.*?<!-- ##SERVER_AI_E## -->', f'<!-- ##SERVER_AI_S## -->{_ai_label}<!-- ##SERVER_AI_E## -->', html)
 # 서버사이드 AI 모델명 패치
 _model_label = GROQ_ACTIVE_MODEL if AI_PROVIDER == 'groq' else 'claude-sonnet-4'
-html = re.sub(r'<!-- ##SERVER_MODEL_S## -->.*?<!-- ##SERVER_MODEL_E## -->', f'<!-- ##SERVER_MODEL_S## -->{_model_label}<!-- ##SERVER_MODEL_E## -->', html)
+# 화면 표시용 짧은 모델명 (gpt-oss-120b, sonnet-4 등)
+_model_short = _model_label.split('/')[-1] if '/' in _model_label else _model_label
+html = re.sub(r'<!-- ##SERVER_MODEL_S## -->.*?<!-- ##SERVER_MODEL_E## -->', f'<!-- ##SERVER_MODEL_S## -->{_model_short}<!-- ##SERVER_MODEL_E## -->', html)
+# title(tooltip) 업데이트
+html = re.sub(r'(<span id="server-model-badge"[^>]*title=")[^"]*(")', rf'\g<1>{_model_label}\g<2>', html)
 
 # ── 다음 업데이트 시간 (cron: 매 5분 주기 기준)
 _next_min = (NOW.minute // 5 + 1) * 5
@@ -2435,65 +2501,8 @@ def save_tg_cache(cache):
         pass
 
 if TG_BOT:
-    # ── 이전 알림 캐시 로드
-    tg_cache = load_tg_cache()
-    prev_sent = set(tg_cache.get('sent_keys', []))
-
-    tg_alerts = []      # 전송할 새 알림
-    tg_all_keys = []    # 이번 실행에서 감지된 모든 키
-
-    # ── 조건 알림 — 이전과 다른 것만
-    for k, meta in TICK_META.items():
-        d = PRICE_DATA.get(k)
-        if not d: continue
-        c = d['c']
-        if abs(c) >= 3.0:
-            sym = '🟢 급등' if c>=0 else '🔴 급락'
-            # 키: 종목+방향+1% 단위 반올림 (같은 방향 1% 이내 변화는 중복)
-            key = f"{k}_{sym}_{round(c)}"
-            tg_all_keys.append(key)
-            if key not in prev_sent:
-                tg_alerts.append(f"{sym} <b>{meta['l']}</b> {meta['u']}{fmt_price(d['p'],k)} ({'+' if c>=0 else ''}{c:.2f}%)")
-
-    for iss in global_issues + domestic_issues:
-        if iss.get('impact') == '상':
-            # 키: 이슈 제목 앞 20자
-            key = f"iss_{iss['title'][:20]}"
-            tg_all_keys.append(key)
-            if key not in prev_sent:
-                tg_alerts.append(f"⚠️ <b>[임팩트 상]</b> {iss['title'][:60]}")
-
-    brent_p = PRICE_DATA.get('BRENT',{}).get('p',0)
-    if brent_p > 110:
-        key = f"brent_110_{int(brent_p//5)*5}"  # 5달러 단위
-        tg_all_keys.append(key)
-        if key not in prev_sent:
-            tg_alerts.append(f"🛢 BRENT <b>${brent_p:.1f}</b> — $110 돌파")
-    elif brent_p and brent_p < 70:
-        key = f"brent_70_{int(brent_p//5)*5}"
-        tg_all_keys.append(key)
-        if key not in prev_sent:
-            tg_alerts.append(f"🛢 BRENT <b>${brent_p:.1f}</b> — $70 하회")
-
-    if tg_alerts:
-        msg = f"📊 <b>HLOOMBERG 긴급알림</b> [{TS}]\n\n" + '\n'.join(tg_alerts[:5])
-        tg_send(msg)
-        print(f'\n[Telegram] 조건알림 {len(tg_alerts)}건 발송 (중복 {len(tg_all_keys)-len(tg_alerts)}건 억제)')
-    else:
-        dup = len([k for k in tg_all_keys if k in prev_sent])
-        if dup > 0:
-            print(f'\n[Telegram] 조건알림 없음 (중복 {dup}건 억제)')
-        else:
-            print('\n[Telegram] 알림 조건 없음')
-
-    # 캐시 업데이트 — 현재 감지된 키로 교체 (조건 사라지면 다음에 다시 알림)
-    save_tg_cache({'sent_keys': list(set(tg_all_keys)), 'ts': TS_SHORT})
-
-    # ── 1시간마다 정기 요약 (매 정각 후 5분 이내 or 수동 실행 시)
-    import os as _os
-    is_manual   = _os.environ.get('GITHUB_EVENT_NAME','') == 'workflow_dispatch'
-    is_hourly   = NOW.minute < 6   # :00~:05 → 1시간 주기
-    if is_hourly or is_manual:
+    # ── 정기요약 (매시간 실행)
+    if True:
         lines = []
 
         # 1. 주요 시세
@@ -2543,8 +2552,5 @@ if TG_BOT:
         summary_msg = f"📊 <b>HLOOMBERG 정기요약</b> [{TS}]\n\n" + '\n'.join(lines)
         tg_send(summary_msg)
         print(f'\n[Telegram] 정기요약 발송 ({NOW.hour:02d}:{NOW.minute:02d} KST)')
-    else:
-        if not tg_alerts:
-            print('\n[Telegram] 알림 조건 없음 (정기요약 대기중)')
 else:
     print('\n[Telegram] TELEGRAM_BOT_TOKEN 미설정 — 스킵')
