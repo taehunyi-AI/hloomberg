@@ -1650,18 +1650,31 @@ def translate_titles(items, cache):
     try:
         titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
         result = call_ai('claude-haiku-4-5-20251001',
-            '영문 뉴스 제목을 한국어로 번역. 번호 유지, 번역문만 출력.',
-            f'번역:\n{titles_str}', 1000)
-        for line in result.strip().split('\n'):
-            m = re.match(r'^(\d+)\.\s*(.+)', line.strip())
+            '영문 뉴스 제목을 한국어로 번역. 반드시 "번호. 번역문" 형식으로만 출력. 예: "1. 번역된 제목". 설명/주석 절대 금지.',
+            titles_str, 1000)
+        parsed = 0
+        result_lines = [l.strip() for l in result.strip().split('\n') if l.strip()]
+        for line in result_lines:
+            # 번호. 번역문 형식
+            m = re.match(r'^(\d+)[.)]\s*(.+)', line)
             if m:
                 idx = int(m.group(1)) - 1
                 if 0 <= idx < len(to_tr):
                     orig_idx, orig_n = to_tr[idx]
                     ko = m.group(2).strip()
                     items[orig_idx]['titleKo'] = ko
-                    cache[orig_n['title']] = ko  # 캐시에 저장
-        print(f'  해외뉴스 제목 번역: {len(to_tr)}건 신규 / 캐시 {len(cache)}건 [{AI_PROVIDER}]')
+                    cache[orig_n['title']] = ko
+                    parsed += 1
+        # fallback: 번호 없으면 순서대로 매핑
+        if parsed == 0 and len(result_lines) >= len(to_tr):
+            for i, line in enumerate(result_lines[:len(to_tr)]):
+                orig_idx, orig_n = to_tr[i]
+                ko = re.sub(r'^\d+[.)]\s*', '', line).strip()
+                if ko:
+                    items[orig_idx]['titleKo'] = ko
+                    cache[orig_n['title']] = ko
+                    parsed += 1
+        print(f'  해외뉴스 제목 번역: {len(to_tr)}건 신규 / 캐시 {len(cache)}건 (파싱={parsed}) [{AI_PROVIDER}]')
     except Exception as e:
         print(f'  번역 FAIL: {e}')
 
