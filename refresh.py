@@ -1052,12 +1052,8 @@ KR_RSS = [
     ('https://rss.etoday.co.kr/eto/finance_news.xml',     '이투데이금융', 'tk'),
     ('https://rss.etoday.co.kr/eto/economy_news.xml',     '이투데이경제', 'tk'),
     # ── 뉴스핌 (증권·금융·글로벌 수급 특화)
-    ('https://biz.chosun.com/rss/stock.xml',                            '조선비즈증권',  'tk'),
-    ('https://biz.chosun.com/rss/economy.xml',                          '조선비즈경제',  'tk'),
-    ('https://biz.chosun.com/rss/international.xml',                    '조선비즈국제',  'tk'),
     # ── 파이낸셜뉴스 (금융·산업)
     ('http://biz.heraldcorp.com/rss/010000.xml',                        '헤럴드경제',   'tk'),
-    ('https://news.bizwatch.co.kr/rss/total.xml',                       '비즈니스워치',  'tk'),
 ]
 
 # ── 국내 Google News: 경제·기업·정부정책 키워드
