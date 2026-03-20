@@ -93,16 +93,40 @@ def JE(s):
     """JS string escape (single-quote safe)"""
     return str(s or '').replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')
 
-def safe_get(url, timeout=8, headers=None, referer=None):
+# 403 차단 도메인 자동 스킵 캐시 (런타임 중 누적)
+_blocked_domains = set()
+
+def safe_get(url, timeout=10, headers=None, referer=None):
+    """HTTP GET — 403/차단 도메인 자동 스킵, 1회 재시도"""
+    import urllib.parse
+    domain = urllib.parse.urlparse(url).netloc
+    if domain in _blocked_domains:
+        return None  # 이미 차단된 도메인 스킵 (무음)
     try:
         h = {'Referer': referer} if referer else {}
         if headers:
             h.update(headers)
         r = SESS.get(url, timeout=timeout, headers=h)
+        if r.status_code == 403:
+            _blocked_domains.add(domain)
+            print(f'  403 차단 → 도메인 스킵 등록: {domain}')
+            return None
         r.raise_for_status()
         return r
+    except requests.exceptions.Timeout:
+        # 타임아웃 1회 재시도 (짧은 대기)
+        try:
+            r = SESS.get(url, timeout=timeout + 5, headers=h)
+            r.raise_for_status()
+            return r
+        except Exception:
+            return None
     except Exception as e:
-        print(f'  FAIL {url[:60]}: {e}')
+        err = str(e)
+        if 'Max retries' in err or 'Connection' in err:
+            pass  # 네트워크 오류 — 조용히 실패
+        else:
+            print(f'  FAIL {url[:60]}: {err[:60]}')
         return None
 
 def fmt_time(dt):
@@ -175,7 +199,10 @@ def kis_get_token():
             print(f'  KIS 토큰 재사용 (만료: {expire_dt.strftime("%m/%d %H:%M")} · 잔여 {remaining:.1f}h)')
             return cached['access_token']
         else:
-            print(f'  KIS 토큰 만료 임박 ({remaining*60:.0f}분 남음) — 재발급')
+            if remaining > 0:
+                print(f'  KIS 토큰 만료 임박 ({remaining*60:.0f}분 남음) — 재발급')
+            else:
+                print(f'  KIS 토큰 이미 만료 ({abs(remaining)*60:.0f}분 경과) — 재발급')
     except Exception:
         pass
     # 신규 발급
@@ -823,7 +850,7 @@ FRED_SERIES = {
     'CPI_YOY':   {'id':'CPIAUCSL',        'name':'미국 CPI(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
     'UNRATE':    {'id':'UNRATE',          'name':'미국 실업률',     'unit':'%',  'yoy':False},
     'GDP_QOQ':   {'id':'A191RL1Q225SBEA', 'name':'미국 GDP(QoQ)',  'unit':'%',  'yoy':False},  # 이미 성장률
-    'US_PMI':    {'id':'ISMMAN',          'name':'미국 PMI',       'unit':'',   'yoy':False},
+    'US_PMI':    {'id':'NAPM',            'name':'미국 제조업PMI', 'unit':'',   'yoy':False},  # ISM Manufacturing
     'US10Y':     {'id':'DGS10',           'name':'미국 10Y 국채',  'unit':'%',  'yoy':False},
     'DXY':       {'id':'DTWEXBGS',        'name':'달러인덱스',      'unit':'',   'yoy':False},
     'PCE':       {'id':'PCEPI',           'name':'미국 PCE(YoY)',  'unit':'%',  'yoy':True},   # 지수 → YoY 계산
@@ -996,30 +1023,41 @@ KR_RSS = [
     ('https://www.hankyung.com/feed/economy',       '한국경제',    'tk'),
     ('https://www.hankyung.com/feed/finance',       '한경증권',    'tk'),
     ('https://www.hankyung.com/feed/it',            '한경IT',      'te'),
+    ('https://www.hankyung.com/feed/politics',      '한경정치',     'tg'),
+    ('https://www.hankyung.com/feed/realestate',    '한경부동산',    'tg'),
     ('https://www.hankyung.com/feed/international', '한경국제',    'tk'),
     # ── 매일경제 (4개) — 올바른 섹션 URL로 교체
     ('https://www.mk.co.kr/rss/30100041/',          '매경경제',    'tk'),  # 경제
     ('https://www.mk.co.kr/rss/50200011/',          '매경증권',    'tk'),  # 증권 (수정)
     ('https://www.mk.co.kr/rss/30300018/',          '매경국제',    'tk'),  # 국제
     # ── 서울경제
-    ('https://www.sedaily.com/RSS/Economy',         '서울경제',    'tk'),
+    ('https://rss.mt.co.kr/mt_news.xml',            '머니투데이',  'tk'),  # 서울경제 403 대체
     # ── 연합뉴스 (정부발표·속보)
-    ('https://www.yna.co.kr/rss/economy.xml',       '연합뉴스',    'tk'),
+    ('https://www.yna.co.kr/rss/economy.xml',       '연합뉴스경제', 'te'),
+    ('https://www.yna.co.kr/rss/politics.xml',      '연합뉴스정치', 'tg'),
+    ('https://www.yna.co.kr/rss/industry.xml',      '연합뉴스산업', 'te'),
+    ('https://www.yna.co.kr/rss/market.xml',        '연합뉴스증시', 'tm'),
+    ('https://www.yna.co.kr/rss/international.xml', '연합뉴스국제', 'te'),
     # ── 전자신문 (IT·반도체)
     ('https://rss.etnews.com/Section902.xml',       '전자신문',    'te'),
     # ── 아시아경제
-    ('https://www.asiae.co.kr/rss/economy.htm',     '아시아경제',  'tk'),
+    ('https://www.asiae.co.kr/rss/economy.htm',     '아시아경제경제', 'te'),
+    ('https://www.asiae.co.kr/rss/stock.htm',       '아시아경제증권', 'tm'),
+    ('https://www.asiae.co.kr/rss/realestate.htm',  '아시아경제부동산','tg'),
+    ('https://www.asiae.co.kr/rss/industry-IT.htm', '아시아경제IT',  'te'),
+    ('https://www.asiae.co.kr/rss/politics.htm',    '아시아경제정치', 'tg'),
+    ('https://www.asiae.co.kr/rss/world.htm',       '아시아경제국제', 'te'),
     # ── 이데일리
     ('https://rss.etoday.co.kr/eto/market_news.xml',      '이투데이마켓', 'tk'),
     ('https://rss.etoday.co.kr/eto/finance_news.xml',     '이투데이금융', 'tk'),
     ('https://rss.etoday.co.kr/eto/economy_news.xml',     '이투데이경제', 'tk'),
     # ── 뉴스핌 (증권·금융·글로벌 수급 특화)
-    ('http://rss.newspim.com/news/category/105',    '뉴스핌증권',  'tk'),  # 증권·금융
-    ('http://rss.newspim.com/news/category/103',    '뉴스핌경제',  'tk'),  # 경제
-    ('http://rss.newspim.com/news/category/107',    '뉴스핌글로벌','tk'),  # 글로벌
+    ('https://biz.chosun.com/rss/stock.xml',                            '조선비즈증권',  'tk'),
+    ('https://biz.chosun.com/rss/economy.xml',                          '조선비즈경제',  'tk'),
+    ('https://biz.chosun.com/rss/international.xml',                    '조선비즈국제',  'tk'),
     # ── 파이낸셜뉴스 (금융·산업)
-    ('http://www.efnews.co.kr/rss/S1N4.xml',        '파이낸셜금융','tk'),  # 금융
-    ('http://www.efnews.co.kr/rss/S1N3.xml',        '파이낸셜산업','tk'),  # 산업
+    ('http://biz.heraldcorp.com/rss/010000.xml',                        '헤럴드경제',   'tk'),
+    ('https://news.bizwatch.co.kr/rss/total.xml',                       '비즈니스워치',  'tk'),
 ]
 
 # ── 국내 Google News: 경제·기업·정부정책 키워드
@@ -1038,21 +1076,37 @@ KR_GNEWS = [
 
 # ── 해외 RSS: 경제·금융·국제정세 전문 매체
 GL_RSS = [
-    ('https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', 'CNBC Economy','미국',  'tm'),
-    ('https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839069',  'CNBC Markets','미국',  'tm'),
+    # ── 미국 (GitHub Actions 접근 가능한 공개 RSS)
+    ('https://www.cnbc.com/id/20910258/device/rss/rss.html',  'CNBC Economy',  '미국',  'tm'),
+    ('https://www.cnbc.com/id/15839069/device/rss/rss.html',  'CNBC Markets',  '미국',  'tm'),
+    ('https://www.cnbc.com/id/15839135/device/rss/rss.html',  'CNBC Earnings', '미국',  'te'),
+    ('https://www.cnbc.com/id/19832390/device/rss/rss.html',  'CNBC Asia',     '아시아', 'tg'),
+    ('https://www.cnbc.com/id/19794221/device/rss/rss.html',  'CNBC Europe',   '유럽',  'tg'),
+    ('https://www.cnbc.com/id/20409666/device/rss/rss.html',  'CNBC MktInsider','미국', 'tm'),
     ('https://feeds.marketwatch.com/marketwatch/topstories/',                                'MarketWatch', '미국',  'tm'),
-    ('https://feeds.a.dj.com/rss/RSSMarketsMain.xml',                                       'WSJ Markets', '미국',  'te'),
-    ('https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml',                                     'WSJ Business','미국',  'te'),
-    ('https://feeds.bloomberg.com/markets/news.rss',                                        'Bloomberg',   '글로벌','te'),
+    ('https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',                           'NYT Business','미국',  'te'),
+    ('https://rss.nytimes.com/services/xml/rss/nyt/World.xml',                              'NYT World',   '국제',  'te'),
+    # ── 유럽
     ('https://feeds.bbci.co.uk/news/business/rss.xml',                                      'BBC Business','유럽',  'te'),
     ('https://feeds.bbci.co.uk/news/world/rss.xml',                                         'BBC World',   '국제',  'te'),
-    ('https://www.ft.com/rss/home',                                                         'FT',          '유럽',  'te'),  # 수정
+    ('https://feeds.bbci.co.uk/news/rss.xml',                                               'BBC Top',     '국제',  'te'),
+    ('https://feeds.bbci.co.uk/news/technology/rss.xml',                                    'BBC Tech',    '국제',  'te'),
+    ('https://feeds.bbci.co.uk/news/politics/rss.xml',                                      'BBC Politics','국제',  'tg'),
+    ('https://www.theguardian.com/business/rss',                                            'Guardian Biz','유럽',  'te'),
+    ('https://www.theguardian.com/world/rss',                                               'Guardian Wld','국제',  'te'),
+    # ── Reuters (공개 RSS)
+    ('https://feeds.reuters.com/reuters/businessNews',                                      'Reuters Biz', '글로벌','te'),
+    ('https://feeds.reuters.com/reuters/worldNews',                                         'Reuters Wld', '글로벌','te'),
+    # ── 중동
     ('https://www.aljazeera.com/xml/rss/all.xml',                                           'Al Jazeera',  '중동',  'tw'),
     ('https://www.middleeasteye.net/rss',                                                   'ME Eye',      '중동',  'tw'),
     ('https://www.timesofisrael.com/feed/',                                                 'ToI',         '중동',  'tw'),
+    # ── 아시아
     ('https://www.scmp.com/rss/91/feed',                                                    'SCMP',        '아시아','tg'),
-    ('https://asia.nikkei.com/rss/feed/nar',                                                'Nikkei Asia', '아시아','tg'),
+    ('https://feeds.apnews.com/apnews/business',                                          'AP Business', '글로벌','tm'),
     ('https://economictimes.indiatimes.com/rssfeedstopstories.cms',                         'ET India',    '아시아','tg'),
+    # ── 글로벌 기업 IR / 실적
+    ('https://ir.thomsonreuters.com/rss/news-releases.xml',                                  'TR IR',       '글로벌','te'),
 ]
 
 # ── 해외 Google News: 경제·국제정세 핵심 키워드
@@ -1120,8 +1174,11 @@ def is_relevant(title):
             return False
     return True
 
+from email.utils import parsedate_to_datetime as _parse_date
+
 def parse_rss(url, src, tag, tc, max_items=4):
-    r = safe_get(url, timeout=8)
+    """RSS/Atom 파싱 — 빈 title 자동 제거, 날짜 파싱 강화"""
+    r = safe_get(url, timeout=12)
     if not r: return []
     try:
         root = ET.fromstring(r.content)
@@ -1130,19 +1187,21 @@ def parse_rss(url, src, tag, tc, max_items=4):
         out = []
         for it in items[:max_items]:
             title = (it.findtext('title') or it.findtext('atom:title', namespaces=ns) or '').strip()
-            link  = (it.findtext('link')  or it.findtext('atom:link', namespaces=ns) or '').strip()
-            pub   = it.findtext('pubDate') or it.findtext('dc:date') or ''
             title = htmlmod.unescape(title)
-            try:
-                from email.utils import parsedate_to_datetime
-                dt = parsedate_to_datetime(pub)
+            if not title or len(title) < 4: continue  # 빈 제목 스킵
+            link  = (it.findtext('link')  or it.findtext('atom:link', namespaces=ns) or '').strip()
+            pub   = it.findtext('pubDate') or it.findtext('dc:date') or                     it.findtext('atom:published', namespaces=ns) or ''
+            try:   dt = _parse_date(pub)
             except:
-                try: dt = datetime.fromisoformat(pub[:19])
+                try:   dt = datetime.fromisoformat(pub[:19])
                 except: dt = NOW
-            out.append({'title': title, 'link': link, 'src': src, 'tag': tag, 'tc': tc, 'time': fmt_time(dt), 'stamp': dt.timestamp() if hasattr(dt,'timestamp') else 0})
+            out.append({'title': title, 'link': link, 'src': src, 'tag': tag, 'tc': tc,
+                        'time': fmt_time(dt), 'stamp': dt.timestamp() if hasattr(dt,'timestamp') else 0})
         return out
+    except ET.ParseError:
+        return []  # XML 파싱 오류 — 조용히 실패 (HTML 응답 등)
     except Exception as e:
-        print(f'  RSS parse fail {url[:50]}: {e}')
+        print(f'  RSS parse fail [{src}]: {str(e)[:60]}')
         return []
 
 def fetch_gnews(query, tag, tc, lang='ko', gl='KR', max_items=5):
@@ -1188,25 +1247,36 @@ def _fetch_kr_gnews(args):
     return fetch_gnews(q, '한국', tc, 'ko', 'KR', 5)
 def _fetch_gl_rss(args):
     url, src, tag, tc = args
-    return parse_rss(url, src, tag, tc, 3)
+    items = parse_rss(url, src, tag, tc, 3)
+    if not items:
+        print(f'  GL RSS FAIL: {src} ({url[:50]})')
+    return items
 def _fetch_gl_gnews(args):
     q, tag, tc = args
-    return fetch_gnews(q, tag, tc, 'en', 'US', 5)
+    items = fetch_gnews(q, tag, tc, 'en', 'US', 5)
+    return items
 
 kr_raw, gl_raw = [], []
-with ThreadPoolExecutor(max_workers=12) as ex:
-    f_kr_rss   = [ex.submit(_fetch_kr_rss,   a) for a in KR_RSS]
-    f_kr_gn    = [ex.submit(_fetch_kr_gnews, a) for a in KR_GNEWS]
-    f_kr_naver = ex.submit(fetch_naver_news)
-    f_kr_daum  = ex.submit(fetch_daum_news)
-    f_gl_rss   = [ex.submit(_fetch_gl_rss,   a) for a in GL_RSS]
-    f_gl_gn    = [ex.submit(_fetch_gl_gnews, a) for a in GL_GNEWS]
+# KR/GL 분리 실행 — 각각 독립 pool, GL이 KR에 밀리지 않음
+with ThreadPoolExecutor(max_workers=8) as ex_kr:
+    f_kr_rss   = [ex_kr.submit(_fetch_kr_rss,   a) for a in KR_RSS]
+    f_kr_gn    = [ex_kr.submit(_fetch_kr_gnews, a) for a in KR_GNEWS]
+    f_kr_naver = ex_kr.submit(fetch_naver_news)
+    f_kr_daum  = ex_kr.submit(fetch_daum_news)
+    with ThreadPoolExecutor(max_workers=8) as ex_gl:
+        f_gl_rss = [ex_gl.submit(_fetch_gl_rss,   a) for a in GL_RSS]
+        f_gl_gn  = [ex_gl.submit(_fetch_gl_gnews, a) for a in GL_GNEWS]
+        for f in f_gl_rss + f_gl_gn:
+            try: gl_raw.extend(f.result(timeout=15))
+            except Exception as e: print(f'  GL future 실패: {e}')
     for f in f_kr_rss + f_kr_gn:
-        kr_raw.extend(f.result())
-    kr_raw.extend(f_kr_naver.result())
-    kr_raw.extend(f_kr_daum.result())
-    for f in f_gl_rss + f_gl_gn:
-        gl_raw.extend(f.result())
+        try: kr_raw.extend(f.result(timeout=15))
+        except Exception as e: print(f'  KR future 실패: {e}')
+    try: kr_raw.extend(f_kr_naver.result(timeout=10))
+    except Exception: pass
+    try: kr_raw.extend(f_kr_daum.result(timeout=5))
+    except Exception: pass
+print(f'  GL 원본 수집: {len(gl_raw)}건 (RSS+GNews)')
 
 # 중복 제거
 kr_news, seen_kr = [], set()
@@ -1216,10 +1286,15 @@ for it in kr_raw:
     if k not in seen_kr: seen_kr.add(k); kr_news.append(it)
 
 gl_news, seen_gl = [], set()
+gl_raw_total = len(gl_raw)
 for it in gl_raw:
     if not is_relevant(it['title']): continue
     k = it['title'][:20]
     if k not in seen_gl: seen_gl.add(k); gl_news.append(it)
+if gl_raw_total == 0:
+    print('  ⚠️  GL_RSS/GNEWS 전체 수집 실패 (네트워크/차단)')
+elif len(gl_news) == 0:
+    print(f'  ⚠️  GL 수집 {gl_raw_total}건 → 필터 후 0건 (BLACKLIST 과필터 가능성)')
 
 # ─────────────────────────────────────────
 # 키워드 가중치 선별
@@ -1252,11 +1327,7 @@ kr_news.sort(key=score_news, reverse=True)
 kr_news = kr_news[:10]
 print(f'  국내뉴스: {len(kr_news)}건 (키워드 가중치 적용)')
 
-# 해외뉴스
-# 해외뉴스 — 필터 + 관련도 점수 정렬
-gl_news = []
-seen_gl = set()
-
+# 해외뉴스 — 관련도 점수 정렬 (병렬 수집 완료 후)
 # 해외 경제·정세 관련 키워드 (가중치)
 GL_SCORE_KW = [
     ('oil','brent','wti','opec','crude','energy','gas','iran','hormuz'),  # 에너지/중동
@@ -1342,6 +1413,20 @@ def fetch_krx_kind():
         print(f'  KIND RSS fail: {e}')
         return []
 
+FIRM_MAP = {
+    '삼성': '삼성증권', '미래에셋': '미래에셋증권', '키움': '키움증권',
+    '한국투자': '한국투자증권', '한투': '한국투자증권',
+    '신한': '신한투자증권', '대신': '대신증권',
+    'NH': 'NH투자증권', 'KB': 'KB증권', '하나': '하나증권',
+    '유안타': '유안타증권', 'SK': 'SK증권', '메리츠': '메리츠증권',
+    '유진': '유진투자증권', '현대차': '현대차증권',
+}
+
+def parse_firm(name):
+    for k, v in FIRM_MAP.items():
+        if k in name: return v
+    return name[:10] if name else '증권사'
+
 def fetch_naver_research():
     """네이버 금융 리서치 - 기업분석 + 투자전략 리포트
     company_list: 종목명 | 제목 | 증권사 | 목표주가 | 날짜  (5열)
@@ -1417,20 +1502,6 @@ print(f'  공시: {len(dart_items)}건 (키워드 가중치 적용)')
 # ─────────────────────────────────────────
 print('\n[리서치] 네이버 금융 리서치 수집 (DART와 병렬)...')
 research_items = []
-
-FIRM_MAP = {
-    '삼성': '삼성증권', '미래에셋': '미래에셋증권', '키움': '키움증권',
-    '한국투자': '한국투자증권', '한투': '한국투자증권',
-    '신한': '신한투자증권', '대신': '대신증권',
-    'NH': 'NH투자증권', 'KB': 'KB증권', '하나': '하나증권',
-    '유안타': '유안타증권', 'SK': 'SK증권', '메리츠': '메리츠증권',
-    '유진': '유진투자증권', '현대차': '현대차증권',
-}
-
-def parse_firm(name):
-    for k, v in FIRM_MAP.items():
-        if k in name: return v
-    return name[:10] if name else '증권사'
 
 research_items = _research_raw
 print(f'  리서치: {len(research_items)}건')
@@ -2053,14 +2124,8 @@ html = patch(html, '// ##GL_NEWS_DATA_S##', '// ##GL_NEWS_DATA_E##', f'\nconst G
 
 # ── 뉴스/공시 요약 캐시 패치
 def summaries_to_js(cache, var_name):
-    lines = [f'const {var_name}={{']
-    for key, v in cache.items():
-        h = JE(v['html'])
-        t = JE(v['ts'])
-        k = JE(key)
-        lines.append(f"  '{k}':{{html:'{h}',ts:'{t}'}},")
-    lines.append('};')
-    return '\n' + '\n'.join(lines) + '\n'
+    # json.dumps로 직렬화 → extract_cache의 json.loads가 정상 파싱되도록
+    return '\n' + f'const {var_name}=' + json.dumps(cache, ensure_ascii=False) + ';\n'
 
 html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
 html = patch(html, '// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', summaries_to_js(gl_news_summaries, 'GL_NEWS_SUMMARIES'))
@@ -2232,7 +2297,7 @@ if STOCK_MODE and (ANTHROPIC_KEY or GROQ_KEY):
             time.sleep(0.5)
         except Exception as e:
             print(f"  FAIL {s['name']}: {e}")
-    print(f'  종목분석: {len(stock_analysis)}/{len(STOCK_LIST)} 완료')
+    print(f'  종목분석: {len(stock_analysis)}/{len(_analysis_list)} 완료')
 elif STOCK_MODE:
     print('\n[종목분석] ANTHROPIC_API_KEY 없음 — 스킵')
 
