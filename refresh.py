@@ -1705,7 +1705,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
         print('  [1/3] 종합분석...')
         t = call_claude(
             'claude-sonnet-4-20250514',
-            '한국 증시 전문 애널리스트 겸 글로벌 매크로 전략가. 한국어. 음슴체로 작성 (~임, ~함, ~됨, ~없음). 존댓말 금지. 각 섹션 최소 3~5문장 이상 구체적으로 작성.',
+            '한국 증시 전문 애널리스트 겸 글로벌 매크로 전략가. 한국어. 음슴체로 작성 (~임, ~함, ~됨, ~없음). 존댓말 금지. 각 섹션 최소 3~5문장 이상 구체적으로 작성. 면책조항/투자주의문구/데이터기준안내 절대 출력 금지.',
             combined_prompt + '\n\n아래 4개 섹션을 각각 구체적 수치와 근거를 포함해 상세히 분석:\n\n'
             '### BIAS\n'
             '뉴스 편향/오류 분석: 어떤 뉴스가 과장되거나 축소됐는지, 놓친 관점은 무엇인지, 시장이 어떤 부분을 오독하고 있는지 분석\n\n'
@@ -1720,7 +1720,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
         parts = re.split(r'###\s*', t)
         full_html = ''
         SECTION_ICONS = {'BIAS':'🔍','FORECAST':'📈','PICKS':'🎯','RISK':'⚠️'}
-        SECTION_LABELS = {'BIAS':'뉴스 편향/오류 분석','FORECAST':'시장 전망','PICKS':'추천 종목','RISK':'핵심 리스크 경고'}
+        SECTION_LABELS = {'BIAS':'BIAS – 뉴스 편향/오류 분석','FORECAST':'FORECAST – 시장 전망','PICKS':'PICKS – 추천 종목','RISK':'RISK – 핵심 리스크 경고'}
         for p in parts:
             if not p.strip(): continue
             lines = p.strip().split('\n')
@@ -1794,6 +1794,18 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
             elif hkey == 'RISK' and re.search(r'^\d+\.', body, re.MULTILINE):
                 result = numbered_to_html(body)
                 body_html = result if result else HE_BR(body)
+            elif hkey == 'BIAS':
+                # BIAS: 번호 항목이면 줄바꿈, 아니면 불릿/단락 처리
+                if re.search(r'^\d+\.', body, re.MULTILINE):
+                    result = numbered_to_html(body)
+                    body_html = result if result else HE_BR(body)
+                elif '•' in body:
+                    result = bullet_to_html(body)
+                    body_html = result if result else HE_BR(body)
+                else:
+                    body = re.sub(r'^- ', '• ', body, flags=re.MULTILINE)
+                    paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
+                    body_html = ''.join(f'<p>{HE(pp)}</p>' for pp in paras) if paras else HE(body)
             else:
                 body = re.sub(r'^- ', '• ', body, flags=re.MULTILINE)
                 paras = [pp.strip() for pp in body.split('\n\n') if pp.strip()]
@@ -1814,6 +1826,11 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
                 ai_sections['picks']    = body_html
             elif 'risk' in first_line or '리스크' in first_line:
                 ai_sections['risk']     = body_html
+        # 면책/주의 문구 후처리 제거
+        full_html = re.sub(
+            r'---\s*모든 수치는[^<]*</p>|<p>[^<]*모든 수치는[^<]*</p>|<div[^>]*>[^<]*모든 수치는[^<]*</div>',
+            '', full_html)
+        full_html = re.sub(r'<p>\s*[-–—]+\s*</p>', '', full_html)
         ai_sections['full'] = full_html
         ai_ts = TS_SHORT
         print(f'  종합분석 OK ({len(full_html)} chars)')
@@ -2007,7 +2024,7 @@ if ANTHROPIC_KEY or GROQ_KEY:
         new_count = 0
         sys_prompt = system_prompt + ' 마크다운 헤더(###,##,#) 절대 사용 금지. 단락 구분은 빈 줄로만. 음슴체로 작성 (~임, ~함, ~됨).'
         for n in items[:max_new]:
-            key = n['title'][:30]
+            key = n.get('link','') or n['title'][:50]  # URL 우선, 없으면 제목 50자
             if key in cache:
                 continue
             try:
@@ -2036,7 +2053,7 @@ if ANTHROPIC_KEY or GROQ_KEY:
         cache = dict(existing_cache)
         new_count = 0
         for d in items[:max_new]:
-            key = d['title'][:30]
+            key = d.get('rcp_no','') or d['title'][:50]  # 공시 접수번호 우선
             if key in cache:
                 continue
             try:
@@ -2218,6 +2235,10 @@ def summaries_to_js(cache, var_name):
 html = patch(html, '// ##KR_NEWS_SUMMARIES_S##', '// ##KR_NEWS_SUMMARIES_E##', summaries_to_js(kr_news_summaries, 'KR_NEWS_SUMMARIES'))
 html = patch(html, '// ##GL_NEWS_SUMMARIES_S##', '// ##GL_NEWS_SUMMARIES_E##', summaries_to_js(gl_news_summaries, 'GL_NEWS_SUMMARIES'))
 html = patch(html, '// ##DART_SUMMARIES_S##',    '// ##DART_SUMMARIES_E##',    summaries_to_js(dart_summaries,    'DART_SUMMARIES'))
+# TITLE_TRANS LRU — 최근 200건만 유지
+if len(title_trans) > 200:
+    keep = list(title_trans.items())[-200:]
+    title_trans = dict(keep)
 html = patch(html, '// ##TITLE_TRANS_S##',       '// ##TITLE_TRANS_E##',       summaries_to_js(title_trans,       'TITLE_TRANS'))
 print(f'  SUMMARIES: 국내뉴스={len(kr_news_summaries)} 해외뉴스={len(gl_news_summaries)} 공시={len(dart_summaries)} 번역캐시={len(title_trans)}')
 
