@@ -159,7 +159,7 @@ TICK_META = {
 
 
 def kis_get_token():
-    """KIS access_token 관리 — 유효하면 재사용, 만료시만 재발급"""
+    """KIS access_token 관리 — 만료 30분 전까지 캐시 재사용, 이후만 재발급"""
     if not KIS_APP_KEY or not KIS_APP_SECRET:
         return None
     # 캐시 파일 확인
@@ -168,10 +168,13 @@ def kis_get_token():
             cached = json.load(f)
         expire_dt = datetime.fromisoformat(cached.get('access_token_token_expired', '2000-01-01'))
         expire_dt = expire_dt.replace(tzinfo=KST) if expire_dt.tzinfo is None else expire_dt
-        # 만료 1시간 전까지 재사용
-        if NOW < expire_dt - timedelta(hours=1):
-            print(f'  KIS 토큰 재사용 (만료: {expire_dt.strftime("%m/%d %H:%M")})')
+        remaining = (expire_dt - NOW).total_seconds() / 3600
+        # 만료 30분 전까지 재사용 (SMS 알림 최소화)
+        if remaining > 0.5:
+            print(f'  KIS 토큰 재사용 (만료: {expire_dt.strftime("%m/%d %H:%M")} · 잔여 {remaining:.1f}h)')
             return cached['access_token']
+        else:
+            print(f'  KIS 토큰 만료 임박 ({remaining*60:.0f}분 남음) — 재발급')
     except Exception:
         pass
     # 신규 발급
@@ -190,10 +193,11 @@ def kis_get_token():
         if not token:
             print(f'  KIS 토큰 없음: {data}')
             return None
+        expire_str = data.get('access_token_token_expired', '?')
         # 캐시 저장 (토큰값은 파일에만, HTML에 절대 노출 안 함)
         with open(KIS_TOKEN_FILE, 'w') as f:
             json.dump(data, f)
-        print(f'  KIS 토큰 신규 발급 OK')
+        print(f'  KIS 토큰 신규 발급 OK (만료: {expire_str})')
         return token
     except Exception as e:
         print(f'  KIS 토큰 발급 오류: {e}')
