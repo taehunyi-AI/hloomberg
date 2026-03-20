@@ -1616,27 +1616,45 @@ def call_claude(model, system, user, max_tokens=3000):
     return call_ai(model, system, user, max_tokens)
 
 def extract_json_array(text):
-    """응답 텍스트에서 JSON 배열을 안전하게 추출. 마크다운/설명문 혼입 대응."""
+    """응답 텍스트에서 JSON 배열 안전 추출 — 4단계 복구"""
     if not text:
         return None
-    # 1차: 코드블록 제거
-    text = re.sub(r'```(?:json)?\s*', '', text).strip().rstrip('`').strip()
-    # 2차: 첫 [ ~ 마지막 ] 추출
-    s1, s2 = text.find('['), text.rfind(']')
+    # 1차: 마크다운/코드블록 제거
+    clean = re.sub(r'```(?:json)?\s*', '', text).strip().rstrip('`').strip()
+    clean = re.sub(r'\*{1,3}[^*]*\*{1,3}', '', clean)  # **bold** 제거
+    # 2차: 첫 [ ~ 마지막 ] 직접 파싱
+    s1, s2 = clean.find('['), clean.rfind(']')
     if s1 >= 0 and s2 > s1:
-        candidate = text[s1:s2+1]
+        candidate = clean[s1:s2+1]
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
-            # 3차: 불완전 JSON 복구 — 마지막 완전한 객체까지만 파싱
-            last_brace = candidate.rfind('},')
-            if last_brace > 0:
-                trimmed = candidate[:last_brace+1] + ']'
+            pass
+        # 3차: 마지막 완전한 객체까지 복구 (},  또는 } 패턴)
+        for pat in ['},', '}']:
+            last = candidate.rfind(pat)
+            if last > 0:
                 try:
-                    return json.loads(trimmed)
+                    result = json.loads(candidate[:last+1] + ']')
+                    if result: return result
                 except Exception:
                     pass
-    return None
+    # 4차: {} 블록 단위 개별 파싱 (배열 구조 손상 시 fallback)
+    objs = []
+    depth = 0; start_idx = -1
+    for i, ch in enumerate(clean):
+        if ch == '{':
+            if depth == 0: start_idx = i
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0 and start_idx >= 0:
+                try:
+                    obj = json.loads(clean[start_idx:i+1])
+                    if isinstance(obj, dict) and obj: objs.append(obj)
+                except Exception:
+                    pass
+    return objs if objs else None
 
 def translate_titles(items, cache):
     """해외뉴스 제목 한글 번역 — 캐시 재사용, 신규만 번역"""
@@ -2336,7 +2354,7 @@ stock_analysis = {}
 if STOCK_MODE and (ANTHROPIC_KEY or GROQ_KEY):
     # 상세분석 대상: AI TOP10이 있으면 사용, 없으면 STOCK_LIST 폴백
     _analysis_list = [{'name':s['name'],'th':s.get('th',''),'mkt':s.get('mkt','KOSPI'),'act':s.get('act','관심'),'desc':s.get('desc',''),'code':s.get('code','')} for s in swing_top10] if swing_top10 else STOCK_LIST
-    print(f'\n[종목분석] Sonnet 상세분석 시작 ({len(_analysis_list)}개)...')
+    print(f'\n[종목분석] AI 상세분석 시작 ({len(_analysis_list)}개) [{AI_PROVIDER.upper()}]...')
     price_str = ' | '.join([f"{k}:{fmt_price(v['p'],k)}({'+' if v['c']>=0 else ''}{v['c']:.2f}%)" for k,v in PRICE_DATA.items()])
     for s in _analysis_list:
         try:
