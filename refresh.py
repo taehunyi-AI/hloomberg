@@ -1588,7 +1588,7 @@ print(f'  리서치: {len(research_items)}건')
 #    이슈분석: 글로벌 10개 + 국내 10개
 #    원자재 AI: 8개 방향성 + 한국 관련주
 #    스윙 TOP10: 시세+뉴스+이슈 기반 AI 선정
-#    번역: 해외뉴스 제목 한글화 (max_tokens=2000)
+#    번역: 해외뉴스 제목 한글화 (토큰 제한 없음)
 # ═════════════════════════════════════════
 # ─────────────────────────────────────────
 print('\n[AI] Claude 분석...')
@@ -1598,40 +1598,64 @@ global_issues = []
 domestic_issues = []
 
 def parse_issues_json(text):
-    clean = re.sub(r'^```(?:json)?', '', text.strip()).rstrip('`').strip()
-    # [ ] 배열 추출
-    s1, s2 = clean.find('['), clean.rfind(']')
-    if s1 >= 0 and s2 > s1:
-        clean = clean[s1:s2+1]
+    """이슈 JSON 배열 파싱 — 4단계 복구 (응답 truncate 대응)"""
+    if not text: return []
+    # 마크다운/bold 제거
+    clean = re.sub(r'^```(?:json)?\s*', '', text.strip()).rstrip('`').strip()
+    clean = re.sub(r'\*{1,3}[^*]*\*{1,3}', '', clean)
+    # [ ] 배열 범위 추출 — depth 기반으로 올바른 ] 탐색
+    s1 = clean.find('[')
+    if s1 >= 0:
+        depth = 0
+        s2 = -1
+        for i in range(s1, len(clean)):
+            if clean[i] == '[': depth += 1
+            elif clean[i] == ']':
+                depth -= 1
+                if depth == 0:
+                    s2 = i
+                    break
+        candidate = clean[s1:s2+1] if s2 > s1 else clean[s1:]
     else:
-        # 배열 없으면 전체로 시도
-        pass
-    # 1차 파싱
+        candidate = clean
+    # 1차: 직접 파싱
     try:
-        result = json.loads(clean)
+        result = json.loads(candidate)
         if isinstance(result, list):
             return [x for x in result if isinstance(x, dict) and x.get('title')]
     except:
         pass
-    # 2차: 마지막 완전한 객체까지 복구
-    lc = clean.rfind('},')
+    # 2차: 마지막 완전한 객체까지 (},)
+    lc = candidate.rfind('},')
     if lc > 0:
         try:
-            result = json.loads(clean[:lc+1]+']')
+            result = json.loads(candidate[:lc+1]+']')
             if isinstance(result, list):
-                return [x for x in result if isinstance(x, dict) and x.get('title')]
+                r = [x for x in result if isinstance(x, dict) and x.get('title')]
+                if r: return r
         except:
             pass
-    # 3차: 중간 잘린 마지막 객체 제거
-    lc2 = clean.rfind('{')
+    # 3차: 마지막 } 까지
+    lc2 = candidate.rfind('}')
     if lc2 > 0:
         try:
-            result = json.loads(clean[:lc2].rstrip(',').rstrip() + ']')
+            result = json.loads(candidate[:lc2+1]+']')
             if isinstance(result, list):
-                return [x for x in result if isinstance(x, dict) and x.get('title')]
+                r = [x for x in result if isinstance(x, dict) and x.get('title')]
+                if r: return r
         except:
             pass
-    print(f'  parse_issues_json 실패 (raw 앞 200자): {clean[:200]}')
+    # 4차: 마지막 { 이전까지 (잘린 마지막 객체 제거)
+    lc3 = candidate.rfind('{')
+    if lc3 > 0:
+        try:
+            result = json.loads(candidate[:lc3].rstrip(',').rstrip() + ']')
+            if isinstance(result, list):
+                r = [x for x in result if isinstance(x, dict) and x.get('title')]
+                if r: return r
+        except:
+            pass
+    print(f'  parse_issues_json 실패 (raw 앞 200자): {candidate[:200]}')
     return []
 
 
@@ -1641,7 +1665,7 @@ GROQ_RETRY_WAIT    = 15  # 초: 429 발생 시 재시도 대기
 GROQ_MAX_RETRY     = 3   # 최대 재시도 횟수
 _groq_last_call    = 0.0 # 마지막 Groq 호출 시각
 
-def call_ai(model, system, user, max_tokens=3000):
+def call_ai(model, system, user):
     """Claude 또는 Groq API 호출 (AI_PROVIDER 환경변수로 선택)"""
     global _groq_last_call
 
@@ -1662,7 +1686,6 @@ def call_ai(model, system, user, max_tokens=3000):
                 headers={'Authorization': f'Bearer {GROQ_KEY}', 'Content-Type': 'application/json'},
                 json={
                     'model': groq_model,
-                    'max_tokens': max_tokens,
                     'messages': [
                         {'role': 'system', 'content': system},
                         {'role': 'user',   'content': user},
@@ -1689,7 +1712,7 @@ def call_ai(model, system, user, max_tokens=3000):
         resp = requests.post(
             'https://api.anthropic.com/v1/messages',
             headers={'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json'},
-            json={'model': model, 'max_tokens': max_tokens, 'system': system, 'messages': [{'role': 'user', 'content': user}]},
+            json={'model': model, 'system': system, 'messages': [{'role': 'user', 'content': user}]},
             timeout=120,
         )
         if not resp.ok:
@@ -1698,8 +1721,8 @@ def call_ai(model, system, user, max_tokens=3000):
     return re.sub(r'^```(?:json)?', '', raw).rstrip('`').strip()
 
 # 하위 호환 alias
-def call_claude(model, system, user, max_tokens=3000):
-    return call_ai(model, system, user, max_tokens)
+def call_claude(model, system, user):
+    return call_ai(model, system, user)
 
 def extract_json_array(text):
     """응답 텍스트에서 JSON 배열 안전 추출 — 4단계 복구
@@ -1758,7 +1781,7 @@ def translate_titles(items, cache):
         titles_str = '\n'.join([f"{i+1}. {n['title']}" for i, (_, n) in enumerate(to_tr)])
         result = call_ai('claude-haiku-4-5-20251001',
             '영문 뉴스 제목을 한국어로 번역. 아래 형식으로만 출력, 다른 텍스트 절대 금지:\n1. 번역된 제목\n2. 번역된 제목',
-            titles_str, 2000)
+            titles_str)
         parsed = 0
         result_lines = [l.strip() for l in result.strip().split('\n') if l.strip()]
         for line in result_lines:
@@ -1979,7 +2002,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
         try:
             print('  [2/4] 글로벌 이슈분석...')
             gt = call_claude('claude-sonnet-4-20250514', '글로벌 매크로 전략가. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지.',
-                f'[시세]\n{price_str}\n[해외뉴스]\n{gl_str}\n\n글로벌 금융시장 핵심 이슈 10개 선정.\n{issue_prompt}', 4000)
+                f'[시세]\n{price_str}\n[해외뉴스]\n{gl_str}\n\n글로벌 금융시장 핵심 이슈 10개 선정.\n{issue_prompt}')
             global_issues = parse_issues_json(gt)
             print(f'  글로벌 이슈: {len(global_issues)}개')
         except Exception as e:
@@ -1988,7 +2011,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
         try:
             print('  [3/4] 국내 이슈분석...')
             dt = call_claude('claude-sonnet-4-20250514', '한국 증시 전문 애널리스트. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지.',
-                f'[시세]\n{price_str}\n[국내뉴스]\n{kr_str}\n[공시]\n{dart_str}\n\n한국 증시/경제 핵심 이슈 10개 선정.\n{issue_prompt}', 4000)
+                f'[시세]\n{price_str}\n[국내뉴스]\n{kr_str}\n[공시]\n{dart_str}\n\n한국 증시/경제 핵심 이슈 10개 선정.\n{issue_prompt}')
             domestic_issues = parse_issues_json(dt)
             print(f'  국내 이슈: {len(domestic_issues)}개')
         except Exception as e:
@@ -2095,9 +2118,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
                 f'[시세] {price_str}\n[뉴스] {kr_str[:400]}\n\n'
                 f'아래 종목 각각의 오늘 투자의견:\n{swing_prompt}\n\n'
                 f'출력형식: [{{"name":"삼성전자","signal":"매수/관망/매도","reason":"1줄이유","target":0,"stop":0}},...]\n'
-                f'JSON만 출력.',
-                2000
-            )
+                f'JSON만 출력.')
             swing_list2 = extract_json_array(swing_resp) or []
             for item in swing_list2:
                 nm = item.get('name','')
