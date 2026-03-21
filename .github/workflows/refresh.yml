@@ -2,9 +2,11 @@ name: HLOOMBERG Refresh
 
 on:
   schedule:
-    # 매시간 실행: KST 06:00~23:00 평일 (UTC 21~14시, 월~금)
+    # 평일: KST 06:00~23:00 매시간 (UTC 21~14시, 월~금)
     # Full AI 포함 (Groq gpt-oss-120b): 종합분석/이슈/원자재/TOP10/요약/종목분석
     - cron: '0 21,22,23,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14 * * 1-5'
+    # 주말: KST 06:00~23:00 6시간마다 (UTC 21,3,9시, 토~일)
+    - cron: '0 21,3,9 * * 0,6'
   workflow_dispatch:
 
 permissions:
