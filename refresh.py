@@ -1865,10 +1865,15 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
             body = body.replace('**','').replace('*','')
 
             def md_table_to_html(text):
-                """마크다운 테이블 → HTML table 변환. HE escape 없음 (raw HTML)"""
+                """마크다운 테이블 → HTML table 변환. HE escape 없음 (raw HTML)
+                Groq가 \n 없이 || 로 행 구분하는 경우 사전 정규화."""
 
+                # || → 줄바꿈으로 정규화 (Groq 응답 호환)
+                if '||' in text and '\n' not in text:
+                    text = text.replace('||', '\n|')
                 lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
-                rows = [l for l in lines if l.startswith('|') and not re.match(r'^\|[-| ]+\|$', l)]
+                # 구분선 제거: |---|---| 또는 |---|--- (끝 | 없는 경우 포함)
+                rows = [l for l in lines if l.startswith('|') and not re.match(r'^\|[-|: ]+\|?$', l)]
                 if len(rows) < 2: return None
                 th_style = 'background:var(--bg2);color:var(--blue);font-weight:600;padding:6px 10px;text-align:left;border:1px solid var(--bd);font-size:13px'
                 td_style = 'padding:6px 10px;border:1px solid var(--bd);color:var(--txt2);font-size:13px;vertical-align:top'
