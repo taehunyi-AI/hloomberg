@@ -2026,6 +2026,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
         ('COPPER',  '구리(COMEX)',        'AI 데이터센터·EV·중국경기·공급부족 관점 분석'),
         ('LITHIUM', '리튬',               'EV 수요 둔화·중국 과잉공급·포스코퓨처엠 영향 분석'),
         ('URA',     '우라늄(URA ETF)',    'SMR·원전 르네상스·두산에너빌리티·공급제약 분석'),
+        ('EIA',     'EIA 유가전망',       '현재 이란전쟁 상황 반영한 EIA 단기/중기 유가전망: 분기별 Brent 예상가, 장기전/단기종결 시나리오별 가격대, 한국 정유·에너지주 투자시사점'),
     ]
     cmdty_ai = {}
     if AI_FULL:
