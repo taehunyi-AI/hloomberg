@@ -14,7 +14,9 @@ import requests
 from bs4 import BeautifulSoup
 
 # ─────────────────────────────────────────
-# 설정
+# ─────────────────────────────────────────
+# 설정 — API 키, 환경변수, 상수, 모델 매핑
+# ─────────────────────────────────────────
 # ─────────────────────────────────────────
 ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 GROQ_KEY      = os.environ.get('GROQ_API_KEY', '')
@@ -83,21 +85,26 @@ mode_label = f'[{AI_MODE.upper()} MODE]' if AI_MODE else ''
 print(f'[{TS}] HLOOMBERG refresh start {mode_label}')
 
 # ─────────────────────────────────────────
-# 유틸
+# ─────────────────────────────────────────
+# 유틸리티 — HTML escape, HTTP 요청, 시간 포맷
+# ─────────────────────────────────────────
 # ─────────────────────────────────────────
 def HE(s):
-    """HTML escape"""
+    """HTML 특수문자 escape (&, <, >)"""
+
     return htmlmod.escape(str(s or ''))
 
 def JE(s):
-    """JS string escape (single-quote safe)"""
+    """JavaScript 문자열 escape (작은따옴표, 역슬래시, 줄바꿈)"""
+
     return str(s or '').replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')
 
 # 403 차단 도메인 자동 스킵 캐시 (런타임 중 누적)
 _blocked_domains = set()
 
 def safe_get(url, timeout=10, headers=None, referer=None):
-    """HTTP GET — 403/차단 도메인 자동 스킵, 1회 재시도"""
+    """재시도 없이 단순 HTTP GET. timeout 기본 10초."""
+
     import urllib.parse
     domain = urllib.parse.urlparse(url).netloc
     if domain in _blocked_domains:
@@ -130,6 +137,7 @@ def safe_get(url, timeout=10, headers=None, referer=None):
         return None
 
 def fmt_time(dt):
+    """datetime → 'MM/DD HH:MM' 형식 문자열"""
     if not dt:
         return ''
     diff = NOW - dt.replace(tzinfo=KST) if dt.tzinfo is None else NOW - dt
@@ -141,7 +149,12 @@ def fmt_time(dt):
     return f'{m//1440}일전'
 
 # ─────────────────────────────────────────
+# ═════════════════════════════════════════
 # 1. 시세 수집
+#    KIS REST API: KOSPI/KOSDAQ/개별 종목
+#    Yahoo Finance: 해외지수/원자재/환율/채권
+#    병렬 수집 (ThreadPoolExecutor)
+# ═════════════════════════════════════════
 # ─────────────────────────────────────────
 
 # KIS REST API 설정
@@ -662,12 +675,14 @@ with ThreadPoolExecutor(max_workers=8) as ex:
 print(f'  → {len(PRICE_DATA)}/{len(TICKERS)} 수신')
 
 def fmt_price(v, key):
+    """숫자 → 단위 포함 문자열. 주가=원 단위, 지수=소수점"""
     dp = TICK_META.get(key, {}).get('dp', 2)
     if dp == 0: return f'{round(v):,}'
     return f'{v:,.{dp}f}'
 
 # TICKS JS 배열 생성 (KIS 지수 우선 반영)
 def make_ticks_js():
+    """TICKS JS 배열 생성 — 시세 티커 데이터"""
     lines = ['const TICKS=[']
     for k, meta in TICK_META.items():
         d = PRICE_DATA.get(k)
@@ -697,7 +712,8 @@ def make_kis_prices_js(data):
     return '\n' + '\n'.join(lines) + '\n'
 
 def make_stocks_js(top10):
-    """AI 선정 TOP10 → STOCKS JS 배열"""
+    """STOCKS JS 배열 생성 — 스윙 TOP10 카드 데이터"""
+
     if not top10:
         return '\nconst STOCKS=[];\n'
     JE = lambda s: str(s).replace('\\','\\\\').replace("'","\\'").replace('\n','\\n')
@@ -760,7 +776,10 @@ with ThreadPoolExecutor(max_workers=6) as ex:
             print(f'  FAIL {key}')
 
 # ─────────────────────────────────────────
+# ─────────────────────────────────────────
 # 종목 OHLCV + 기술지표
+#    KIS OHLCV 90일치 → MA5/20/60, 볼린저밴드, RSI(14)
+# ─────────────────────────────────────────
 # ─────────────────────────────────────────
 STOCK_TICKERS = {
     '삼성전자':   '005930.KS', 'SK하이닉스':  '000660.KS',
@@ -840,7 +859,10 @@ with ThreadPoolExecutor(max_workers=5) as ex:
             print(f'  FAIL {name}')
 
 # ─────────────────────────────────────────
+# ─────────────────────────────────────────
 # FRED API — 미국 경제지표
+#    기준금리/CPI/실업률/GDP/PMI/10Y/DXY/PCE
+# ─────────────────────────────────────────
 # ─────────────────────────────────────────
 FRED_KEY = os.environ.get('FRED_API_KEY', '')
 fred_data = {}
@@ -900,7 +922,10 @@ with ThreadPoolExecutor(max_workers=6) as ex:
             print(f'  SKIP {key} (키 없음)')
 
 # ─────────────────────────────────────────
+# ─────────────────────────────────────────
 # 한국은행 OpenAPI — 한국 경제지표
+#    기준금리/M2/BOP/CPI (100통계 API)
+# ─────────────────────────────────────────
 # ─────────────────────────────────────────
 BOK_KEY = os.environ.get('BOK_API_KEY', '')
 bok_data = {}
@@ -970,7 +995,10 @@ with ThreadPoolExecutor(max_workers=4) as ex:
             print(f'  SKIP {key} (데이터 없음)')
 
 # ─────────────────────────────────────────
-# 섹터 히트맵 — 섹터 ETF 시세
+# ─────────────────────────────────────────
+# 섹터 히트맵 — KOSPI 10개 섹터 ETF 시세
+#    반도체/2차전지/방산/바이오/자동차/금융/에너지/IT/건설/소비재
+# ─────────────────────────────────────────
 # ─────────────────────────────────────────
 SECTOR_ETFS = {
     '반도체':   {'sym':'091160.KS', 'etf':'KODEX 반도체'},
@@ -1014,7 +1042,12 @@ with ThreadPoolExecutor(max_workers=6) as ex:
             print(f'  FAIL {sector}')
 
 # ─────────────────────────────────────────
+# ═════════════════════════════════════════
 # 2. 뉴스 수집
+#    KR_RSS 26개 + GL_RSS 62개 병렬 파싱
+#    Google News API 병렬 쿼리
+#    키워드 가중치 → 국내 20건 / 해외 20건 선별
+# ═════════════════════════════════════════
 # ─────────────────────────────────────────
 
 # ── 국내 RSS: 경제·증시·기업실적·정부정책 전문 피드
@@ -1330,7 +1363,12 @@ elif len(gl_news) == 0:
     print(f'  ⚠️  GL 수집 {gl_raw_total}건 → 필터 후 0건 (BLACKLIST 과필터 가능성)')
 
 # ─────────────────────────────────────────
-# 키워드 가중치 선별
+# ─────────────────────────────────────────
+# 키워드 가중치 선별 — 주요 종목/섹터/이슈 점수화
+#    TIER1(+3): 삼성/SK하이닉스 등 대형 종목
+#    TIER2(+2): 방산/에너지/중동 이슈
+#    블랙리스트(제외): 스포츠/연예/생활정보
+# ─────────────────────────────────────────
 # ─────────────────────────────────────────
 KW_TIER1 = ['삼성전자','SK하이닉스','LG에너지솔루션','삼성바이오로직스',
              '현대차','기아','셀트리온','POSCO홀딩스','KB금융','신한지주']
@@ -1531,7 +1569,11 @@ dart_items = dart_items[:10]
 print(f'  공시: {len(dart_items)}건 (키워드 가중치 적용)')
 
 # ─────────────────────────────────────────
-# 4. 리서치 리포트 수집 (네이버 금융 통합)
+# ═════════════════════════════════════════
+# 4. 리서치 리포트 수집
+#    네이버 금융 증권사 리포트 (최신 15건)
+#    삼성/미래에셋/키움/한투/신한/대신/NH/KB 등
+# ═════════════════════════════════════════
 # ─────────────────────────────────────────
 print('\n[리서치] 네이버 금융 리서치 수집 (DART와 병렬)...')
 research_items = []
@@ -1540,7 +1582,14 @@ research_items = _research_raw
 print(f'  리서치: {len(research_items)}건')
 
 # ─────────────────────────────────────────
-# 5. Claude AI 분석
+# ═════════════════════════════════════════
+# 5. AI 분석 (Groq 기본 / Claude 폴백)
+#    종합분석: BIAS/FORECAST/PICKS/RISK 4섹션
+#    이슈분석: 글로벌 10개 + 국내 10개
+#    원자재 AI: 8개 방향성 + 한국 관련주
+#    스윙 TOP10: 시세+뉴스+이슈 기반 AI 선정
+#    번역: 해외뉴스 제목 한글화 (max_tokens=2000)
+# ═════════════════════════════════════════
 # ─────────────────────────────────────────
 print('\n[AI] Claude 분석...')
 ai_sections = {'full': '', 'bias': '', 'forecast': '', 'picks': '', 'risk': ''}
@@ -1653,7 +1702,9 @@ def call_claude(model, system, user, max_tokens=3000):
     return call_ai(model, system, user, max_tokens)
 
 def extract_json_array(text):
-    """응답 텍스트에서 JSON 배열 안전 추출 — 4단계 복구"""
+    """응답 텍스트에서 JSON 배열 안전 추출 — 4단계 복구
+    1차: 마크다운 제거 2차: [] 직접 파싱 3차: 불완전 복구 4차: {} 블록 단위"""
+
     if not text:
         return None
     # 1차: 마크다운/코드블록 제거
@@ -1694,7 +1745,8 @@ def extract_json_array(text):
     return objs if objs else None
 
 def translate_titles(items, cache):
-    """해외뉴스 제목 한글 번역 — 캐시 재사용, 신규만 번역"""
+    """해외뉴스 제목 한글 번역 — URL 캐시 재사용, 신규만 Groq API 호출"""
+
     to_tr = [(i, n) for i, n in enumerate(items)
              if not re.search(r'[가-힣]', n['title']) and n['title'] not in cache]
     # 캐시에서 먼저 적용
@@ -1791,7 +1843,8 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
             body = body.replace('**','').replace('*','')
 
             def md_table_to_html(text):
-                """마크다운 테이블 → HTML table 변환 (raw HTML, escape 없음)"""
+                """마크다운 테이블 → HTML table 변환. HE escape 없음 (raw HTML)"""
+
                 lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
                 rows = [l for l in lines if l.startswith('|') and not re.match(r'^\|[-| ]+\|$', l)]
                 if len(rows) < 2: return None
@@ -1806,7 +1859,8 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
                 return html_t + '</table>'
 
             def numbered_to_html(text):
-                """1. 2. 3. 숫자 리스트 → ai-item div (raw HTML, escape 금지)"""
+                """번호 리스트 → ai-item div. raw HTML 직접 조립 (escape 금지)"""
+
                 parts = re.split(r'(?=\n?\d+\.\s)', '\n' + text.strip())
                 items = [p.strip() for p in parts if p.strip()]
                 if len(items) < 2: return None
@@ -1829,7 +1883,8 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
                 return out
 
             def bullet_to_html(text):
-                """• 불릿 항목 → 단락 구분 div"""
+                """불릿(•/·) 리스트 → ai-bullet div"""
+
                 parts = re.split(r'(?=\n?[•·]\s)', '\n' + text.strip())
                 items = [p.strip() for p in parts if p.strip()]
                 if len(items) < 2: return None
@@ -2067,7 +2122,12 @@ else:
     swing_top10 = []
 
 # ─────────────────────────────────────────
-# 5-2. 뉴스/공시 요약 (새 항목만, 중복 스킵)
+# ─────────────────────────────────────────
+# 5-2. 뉴스/공시 요약
+#    URL 기반 캐시 키 → 신규 항목만 API 호출
+#    국내/해외 뉴스 20건 + 공시 10건
+#    Haiku(속도) / Sonnet(공시 상세)
+# ─────────────────────────────────────────
 # ─────────────────────────────────────────
 kr_news_summaries = {}
 gl_news_summaries = {}
@@ -2166,11 +2226,17 @@ if ANTHROPIC_KEY or GROQ_KEY:
     dart_summaries    = summarize_dart(dart_items, dart_summaries, max_new=10)
 
 # ─────────────────────────────────────────
+# ═════════════════════════════════════════
 # 6. HTML 패치
+#    ## 마커 기반 동적 콘텐츠 삽입
+#    시세/뉴스/공시/AI분석/이슈/원자재/경제지표
+#    결과를 hloomberg.html에 직접 embed → GitHub Pages 서빙
+# ═════════════════════════════════════════
 # ─────────────────────────────────────────
 print(f'\n[패치] {HTML_FILE} 패치 중...')
 
 def patch(html, s_marker, e_marker, content):
+    """## 마커 사이 콘텐츠 교체. 마커 없으면 WARNING 출력"""
     si = html.find(s_marker)
     ei = html.find(e_marker)
     if si >= 0 and ei > si:
@@ -2305,6 +2371,7 @@ html = patch(html, '// ##GL_NEWS_DATA_S##', '// ##GL_NEWS_DATA_E##', f'\nconst G
 
 # ── 뉴스/공시 요약 캐시 패치
 def summaries_to_js(cache, var_name):
+    """요약 캐시 → JS const 선언문. json.dumps로 직렬화"""
     # json.dumps로 직렬화 → extract_cache의 json.loads가 정상 파싱되도록
     return '\n' + f'const {var_name}=' + json.dumps(cache, ensure_ascii=False) + ';\n'
 
@@ -2393,7 +2460,13 @@ html = patch(html, '<!-- ##ISSUES_KR_S## -->', '<!-- ##ISSUES_KR_E## -->', '\n' 
 print(f'  ISSUES: 글로벌 {len(global_issues)}개 · 국내 {len(domestic_issues)}개')
 
 # ─────────────────────────────────────────
-# 7. 종목 상세분석 (1시간마다 STOCK_MODE=1)
+# ═════════════════════════════════════════
+# 7. 종목 상세분석
+#    AI TOP10 또는 STOCK_LIST 9개 폴백
+#    KIS 재무비율(PER/PBR/ROE/EPS) + 투자자동향 주입
+#    7항목: 펀더멘털/기술분석/진입전략/목표가/손절/촉매/종합
+#    raw HTML 변환 (_tbl 테이블 + 번호헤더 + 불릿)
+# ═════════════════════════════════════════
 # ─────────────────────────────────────────
 STOCK_LIST = [
     {'name':'삼성전자',  'th':'반도체', 'mkt':'KOSPI',  'act':'분할매수', 'desc':'이란전쟁 무관. 원화 하락 수출 수혜. 목표 227,000원.'},
@@ -2583,13 +2656,18 @@ print(f'   시세:{len(PRICE_DATA)} 국내뉴스:{len(kr_news)} 해외뉴스:{le
 
 # ─────────────────────────────────────────
 # ─────────────────────────────────────────
-# Telegram 알림
+# ═════════════════════════════════════════
+# 8. Telegram 알림
+#    정기요약: 매시간 1회 (시세4 + 이슈3 + 스윙5 + 뉴스3)
+#    Bot API sendMessage (HTML parse_mode)
+# ═════════════════════════════════════════
 # ─────────────────────────────────────────
 TG_BOT  = os.environ.get('TELEGRAM_BOT_TOKEN','')
 TG_CHAT = os.environ.get('TELEGRAM_CHAT_ID','')
 TG_CACHE_FILE = '/tmp/tg_alert_cache.json'   # 이전 알림 캐시
 
 def tg_send(msg):
+    """Telegram Bot API sendMessage (HTML 파싱)"""
     if not TG_BOT or not TG_CHAT:
         print('  [TG] 토큰/ChatID 미설정')
         return
