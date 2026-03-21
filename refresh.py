@@ -2187,7 +2187,7 @@ if ANTHROPIC_KEY or GROQ_KEY:
             try:
                 # Haiku — 속도 우선 (10건 전체 처리)
                 t = call_claude('claude-haiku-4-5-20251001', sys_prompt,
-                    f"제목: {n['title']}\n출처: {n.get('src','')}\n태그: {n.get('tag','')}", 1000)
+                    f"제목: {n['title']}\n출처: {n.get('src','')}\n태그: {n.get('tag','')}")
                 t = re.sub(r'^#{1,4}\s*(.+)$', r'<strong>\1</strong>', t, flags=re.MULTILINE)
                 t = t.replace('**','').replace('*','')
                 t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
@@ -2215,7 +2215,7 @@ if ANTHROPIC_KEY or GROQ_KEY:
                 continue
             try:
                 t = call_claude('claude-sonnet-4-20250514', '금융공시 전문가. 한국어. 음슴체로 작성 (예: ~임, ~함, ~됨, ~없음). 존댓말 사용 금지. 투자자 관점 핵심 요약. 마크다운 헤더(###,##) 사용 금지. 단락으로만 작성.',
-                    f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}", 800)
+                    f"공시: {d['title']}\n기업: {d.get('corp','')}\n유형: {d.get('type','')}")
                 t = re.sub(r'^#{1,4}\s*', '', t, flags=re.MULTILINE)
                 t = t.replace('**','').replace('*','')
                 t = re.sub(r'^- ', '• ', t, flags=re.MULTILINE)
