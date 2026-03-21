@@ -1844,8 +1844,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
             '### PICKS\n'
             '추천종목 3~5개: 각 종목별 추천 이유, 진입가격대, 목표가, 손절가 명시\n\n'
             '### RISK\n'
-            '핵심 리스크: 상위 3개 리스크 요인, 각 리스크의 발생 가능성(%)과 시장 충격 크기, 대응 전략',
-            4000
+            '핵심 리스크: 상위 3개 리스크 요인, 각 리스크의 발생 가능성(%)과 시장 충격 크기, 대응 전략'
         )
         parts = re.split(r'###\s*', t)
         full_html = ''
@@ -2042,8 +2041,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
                 f'[현재시세]\n{price_str}\n[해외뉴스요약]\n{gl_str[:800]}\n\n'
                 f'아래 원자재 각각에 대해 JSON 배열로 분석:\n{cmdty_prompt}\n\n'
                 f'출력형식: [{{"sym":"BRENT","comment":"분석내용","direction":"상승/하락/횡보","kr_stocks":"관련주"}},...]\n'
-                f'JSON만 출력, 다른 텍스트 없이.',
-                3000
+                f'JSON만 출력, 다른 텍스트 없이.'
             )
             # JSON 파싱
             raw = re.sub(r'^```(?:json)?', '', cmdty_resp).rstrip('`').strip()
@@ -2098,8 +2096,7 @@ if (ANTHROPIC_KEY or GROQ_KEY) and AI_PARTIAL:
                 f'출력형식(JSON 배열만):\n'
                 f'[{{"name":"삼성전자","code":"005930","mkt":"KOSPI","th":"반도체","tc":"tsm",'
                 f'"act":"분할매수","ac":"aby","risk":2,"desc":"목표가 XX만원. 근거 1문장."}},...]\n'
-                f'risk: 1=매우낮음 2=낮음 3=중간 4=높음 5=매우높음',
-                3000
+                f'risk: 1=매우낮음 2=낮음 3=중간 4=높음 5=매우높음'
             )
             top10_list = extract_json_array(top10_resp)
             if not top10_list:
@@ -2564,8 +2561,7 @@ if STOCK_MODE and (ANTHROPIC_KEY or GROQ_KEY):
                 f"6. 촉매 / 이벤트\n"
                 f"   - 단기 주가 촉매 (실적발표, 수주 등)\n"
                 f"   - 주의할 리스크 이벤트\n\n"
-                f"7. 종합 의견 (2~3줄 요약)",
-                2000
+                f"7. 종합 의견 (2~3줄 요약)"
             )
             # 마크다운 → 구조화 HTML 변환
             t = t.replace('**', '').replace('*', '')
